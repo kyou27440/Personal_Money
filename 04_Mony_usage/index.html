@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="css/sidebar.css">
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/personal.css">
-    <link rel="stylesheet" href="css/club.css?v=1.6">
+    <link rel="stylesheet" href="css/club.css?v=2.0">
     <link rel="stylesheet" href="css/exchange.css">
     <link rel="stylesheet" href="css/analytics.css">
     <link rel="stylesheet" href="css/settings.css">
@@ -146,19 +146,22 @@
     <script src="js/router.js"></script>
     <script src="js/pages/dashboard.js"></script>
     <script src="js/pages/personal.js"></script>
-    <script src="js/pages/club.js?v=1.6"></script>
+    <script src="js/pages/club.js?v=2.0"></script>
     <script src="js/pages/exchange.js"></script>
     <script src="js/pages/analytics.js"></script>
     <script src="js/pages/settings.js"></script>
     <script src="js/app.js"></script>
 
-    <!-- Service Worker 등록 -->
+    <!-- Service Worker 해제 및 브라우저 강제 캐시 초기화 -->
     <script>
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('✅ Service Worker 등록:', reg.scope))
-                    .catch(err => console.warn('⚠️ SW 등록 실패:', err));
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let reg of registrations) { reg.unregister(); }
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                for (let name of names) { caches.delete(name); }
             });
         }
     </script>
