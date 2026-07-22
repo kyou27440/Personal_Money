@@ -642,27 +642,30 @@ const ClubPage = {
             `;
         }
 
-        // 복사용 텍스트 업데이트
+        // 카톡 단톡방 전용 예쁜 텍스트 시트 (표 형태) 생성
         if (rawElem) {
             const medalIcons = ['🥇', '🥈', '🥉'];
             const rankLines = ttlPerRank.map((amt, idx) => {
-                const icon = medalIcons[idx] || `${idx + 1}등`;
-                const rankText = idx <= 2 ? `${icon} ${idx + 1}등` : `${idx + 1}등`;
-                return `${rankText} (${ratios[idx]}%): ${Utils.formatVND(amt)}`;
+                const icon = medalIcons[idx] || '▫️';
+                const rankName = `${icon} ${idx + 1}등`.padEnd(5, ' ');
+                const ratioStr = `${ratios[idx]}%`.padStart(4, ' ');
+                const amtStr = Utils.formatVND(amt).padStart(13, ' ');
+                return `│ ${rankName} │ ${ratioStr} │ ${amtStr} │`;
             }).join('\n');
 
             rawElem.value = 
-`⛳ [회사 모임 회비 산출 안내]
-----------------------------------
+`⛳ [회사 모임 회비 정산 시트]
+===================================
 👥 참석 인원: ${count}명
-⛳ 스크린골프비: ${Utils.formatVND(golfTotal)} ${golfMode === 'per_person' ? `(1인당 ${Utils.formatVND(golfVal)})` : ''}
+⛳ 스크린 골프: ${Utils.formatVND(golfTotal)} ${golfMode === 'per_person' ? `(1인당 ${Utils.formatVND(golfVal)})` : ''}
 🍜 식사비 (MAX): ${Utils.formatVND(mealTotal)}
-💵 총 예상 비용: ${Utils.formatVND(ttlGrandTotal)}
-
-[등수별 회비 납부 예상 금액]
+💵 총 정산 비용: ${Utils.formatVND(ttlGrandTotal)}
+-----------------------------------
+┌   순위   ┬  비율  ┬    납부 금액 (VND)    ┐
+├──────────┼────────┼───────────────────┤
 ${rankLines}
-----------------------------------
-※ 게임 종료 후 최종 순위에 따라 상기 금액을 회비 계좌로 입금해 주세요! 🙏`;
+└──────────┴────────┴───────────────────┘
+※ 게임 종료 후 최종 순위에 따라 입금해 주세요! 🙏`;
         }
     }
 };
