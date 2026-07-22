@@ -90,6 +90,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
+    table-layout: auto;
 }
 
 .calc-sheet-table th,
@@ -97,6 +98,13 @@
     padding: 10px 12px;
     border: 1px solid var(--border-color);
     text-align: right;
+    white-space: nowrap;
+    min-width: 90px;
+}
+
+.calc-sheet-table th:first-child,
+.calc-sheet-table td:first-child {
+    min-width: 110px;
 }
 
 .calc-sheet-table th {
@@ -150,20 +158,25 @@
 /* 비율 입력 필드 */
 .calc-sheet-table .cell-ratio {
     text-align: center;
-    padding: 6px;
+    padding: 8px 6px;
     background: var(--bg-secondary);
+    white-space: nowrap;
+    min-width: 100px;
 }
 
 .ratio-input-wrapper {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
     background: #0f172a;
     border: 1.5px solid #38bdf8;
     border-radius: 8px;
-    padding: 4px 8px;
+    padding: 5px 12px;
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+    min-width: 84px;
+    flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 .ratio-input-wrapper:focus-within {
@@ -173,30 +186,54 @@
 }
 
 .ratio-input {
-    width: 48px;
-    border: none;
-    background: transparent;
-    text-align: center;
-    font-weight: 800;
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 60px !important;
+    flex-shrink: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    text-align: center !important;
+    font-weight: 800 !important;
     color: #ffffff !important;
-    font-size: 0.95rem;
-    outline: none;
+    -webkit-text-fill-color: #ffffff !important;
+    font-size: 1.05rem !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: textfield !important;
 }
 
 .ratio-input::-webkit-outer-spin-button,
 .ratio-input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    display: none !important;
+    margin: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
 }
 
-.ratio-input[type=number] {
-    -moz-appearance: textfield;
+.ratio-input::-webkit-credentials-auto-fill-button,
+.ratio-input::-webkit-contacts-auto-fill-button,
+.ratio-input::-webkit-strong-password-auto-fill-button,
+.ratio-input::-webkit-credit-card-auto-fill-button {
+    visibility: hidden !important;
+    display: none !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
 }
 
 .percent-sign {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     color: #38bdf8;
-    font-weight: 700;
+    font-weight: 800;
+    user-select: none;
+    flex-shrink: 0;
 }
 
 .calc-sheet-table .cell-total-ratio {

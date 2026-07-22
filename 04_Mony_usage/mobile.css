@@ -1,0 +1,221 @@
+/* ============================================
+   MOBILE.CSS — 모바일 최적화 스타일
+   FAB 버튼 + 하단 탭 네비게이션
+   ============================================ */
+
+/* --- FAB (Floating Action Button) --- */
+.fab {
+    display: none; /* 모바일에서만 표시 */
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-full);
+    background: var(--gradient-primary);
+    color: #fff;
+    font-size: 1.8rem;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+    z-index: 900;
+    transition: all var(--transition-base);
+    border: none;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.fab:hover, .fab:active {
+    transform: scale(1.1);
+    box-shadow: 0 6px 28px rgba(99, 102, 241, 0.5);
+}
+
+.fab:active {
+    transform: scale(0.95);
+}
+
+/* --- Bottom Tab Navigation (모바일) --- */
+.bottom-nav {
+    display: none; /* 모바일에서만 표시 */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: var(--bg-sidebar);
+    border-top: 1px solid var(--border-color);
+    z-index: 1000;
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.bottom-nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    height: 64px;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 0;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color var(--transition-fast);
+    flex: 1;
+    min-width: 0;
+    position: relative;
+}
+
+.bottom-nav-item .bnav-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+}
+
+.bottom-nav-item .bnav-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60px;
+}
+
+.bottom-nav-item.active {
+    color: var(--accent-indigo);
+}
+
+.bottom-nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 3px;
+    background: var(--accent-indigo);
+    border-radius: 0 0 3px 3px;
+}
+
+.bottom-nav-item:active {
+    color: var(--accent-violet);
+}
+
+/* --- 모바일 반응형 --- */
+@media (max-width: 768px) {
+    /* FAB 표시 */
+    .fab {
+        display: flex;
+    }
+
+    /* 하단 탭 표시 */
+    .bottom-nav {
+        display: block;
+    }
+
+    /* 사이드바 숨기기 (하단 탭으로 대체) */
+    .sidebar {
+        transform: translateX(-100%);
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+    }
+
+    /* 하단 네비게이션 높이만큼 콘텐츠 여백 */
+    .page-container {
+        padding-bottom: 80px;
+    }
+
+    /* 페이지 헤더 슬림화 */
+    .page-header {
+        padding: var(--space-sm) var(--space-md);
+        min-height: 48px;
+    }
+
+    .page-title {
+        font-size: 1rem;
+    }
+
+    /* 서머리 카드 모바일 최적화 */
+    .summary-card .card-value {
+        font-size: 1.2rem;
+    }
+
+    .summary-card .card-label {
+        font-size: 0.75rem;
+    }
+
+    /* 테이블 가로 스크롤 */
+    .table-wrapper {
+        margin: 0 calc(-1 * var(--space-md));
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
+
+    /* 필터 바 세로 배치 */
+    .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-bar select,
+    .filter-bar input {
+        min-width: 100%;
+    }
+
+    /* 섹션 헤더 */
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    /* 대시보드 그리드 1열 */
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* 차트 높이 조정 */
+    .chart-container {
+        max-height: 240px;
+    }
+
+    /* 모달 전체화면 */
+    .modal-content {
+        max-width: 100%;
+        max-height: 95vh;
+        margin: var(--space-sm);
+        border-radius: var(--radius-lg);
+    }
+
+    .modal-overlay {
+        padding: var(--space-sm);
+    }
+}
+
+/* 아주 작은 화면 (360px 이하) */
+@media (max-width: 360px) {
+    .bottom-nav-item .bnav-text {
+        font-size: 0.62rem;
+    }
+
+    .summary-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-sm);
+    }
+
+    .summary-card {
+        padding: var(--space-md);
+    }
+
+    .summary-card .card-value {
+        font-size: 1rem;
+    }
+}

@@ -501,7 +501,7 @@ const ClubPage = {
         });
     },
 
-    updateCalcTable() {
+    updateCalcTable(options = {}) {
         const { count, golfMode, golfVal, mealVal, ratios } = this.calcState;
 
         // 골프 총액 계산
@@ -537,58 +537,99 @@ const ClubPage = {
             ttlPerRank.push(tAmt);
         }
 
-        // 엑셀 표 구성 HTML
-        let tableHtml = `
-            <thead>
-                <tr>
-                    <th style="width:110px;text-align:center;">구분</th>
-                    ${Array.from({ length: count }, (_, i) => `<th style="text-align:center;">${i + 1}등</th>`).join('')}
-                    <th style="text-align:right;background:rgba(99,102,241,0.15);">Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr class="row-golf">
-                    <td class="cell-label">⛳ 골프비</td>
-                    ${golfPerRank.map(amt => `<td class="cell-val">${Utils.formatVND(amt)}</td>`).join('')}
-                    <td class="cell-total">${Utils.formatVND(golfTotal)}</td>
-                </tr>
-                <tr class="row-meal">
-                    <td class="cell-label">🍜 식사비</td>
-                    ${mealPerRank.map(amt => `<td class="cell-val">${Utils.formatVND(amt)}</td>`).join('')}
-                    <td class="cell-total">${Utils.formatVND(mealTotal)}</td>
-                </tr>
-                <tr class="row-ttl">
-                    <td class="cell-label-ttl">TTL (합계)</td>
-                    ${ttlPerRank.map(amt => `<td class="cell-val-ttl">${Utils.formatVND(amt)}</td>`).join('')}
-                    <td class="cell-total-ttl">${Utils.formatVND(ttlGrandTotal)}</td>
-                </tr>
-                <tr class="row-ratio">
-                    <td class="cell-label">배분 비율</td>
-                    ${ratios.map((r, i) => `
-                        <td class="cell-ratio" style="text-align:center;padding:6px;background:var(--bg-secondary);">
-                            <div class="ratio-input-wrapper" style="display:inline-flex;align-items:center;justify-content:center;gap:3px;background:#0f172a;border:1.5px solid #38bdf8;border-radius:8px;padding:4px 8px;box-shadow:inset 0 1px 3px rgba(0,0,0,0.4);">
-                                <input type="text" inputmode="decimal" class="ratio-input" data-rank="${i}" value="${r}" style="width:40px;border:none;background:transparent;text-align:center;font-weight:800;color:#ffffff !important;font-size:0.95rem;outline:none;">
-                                <span class="percent-sign" style="font-size:0.85rem;color:#38bdf8;font-weight:700;">%</span>
-                            </div>
-                        </td>
-                    `).join('')}
-                    <td class="cell-total-ratio">${ratioSumFixed}%</td>
-                </tr>
-            </tbody>
-        `;
+        // DOM 갱신 (keepDOM이 false이거나 없으면 전체 HTML 생성, true이면 숫치 셀만 업데이트하여 입력 포커스 유지)
+        if (!options.keepDOM) {
+            let tableHtml = `
+                <thead>
+                    <tr>
+                        <th style="width:110px;text-align:center;">구분</th>
+                        ${Array.from({ length: count }, (_, i) => `<th style="text-align:center;">${i + 1}등</th>`).join('')}
+                        <th style="text-align:right;background:rgba(99,102,241,0.15);">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="row-golf">
+                        <td class="cell-label">⛳ 골프비</td>
+                        ${golfPerRank.map(amt => `<td class="cell-val">${Utils.formatVND(amt)}</td>`).join('')}
+                        <td class="cell-total">${Utils.formatVND(golfTotal)}</td>
+                    </tr>
+                    <tr class="row-meal">
+                        <td class="cell-label">🍜 식사비</td>
+                        ${mealPerRank.map(amt => `<td class="cell-val">${Utils.formatVND(amt)}</td>`).join('')}
+                        <td class="cell-total">${Utils.formatVND(mealTotal)}</td>
+                    </tr>
+                    <tr class="row-ttl">
+                        <td class="cell-label-ttl">TTL (합계)</td>
+                        ${ttlPerRank.map(amt => `<td class="cell-val-ttl">${Utils.formatVND(amt)}</td>`).join('')}
+                        <td class="cell-total-ttl">${Utils.formatVND(ttlGrandTotal)}</td>
+                    </tr>
+                    <tr class="row-ratio">
+                        <td class="cell-label">배분 비율</td>
+                        ${ratios.map((r, i) => `
+                            <td class="cell-ratio">
+                                <div class="ratio-input-wrapper">
+                                    <input type="text" 
+                                           inputmode="decimal" 
+                                           pattern="[0-9.]*"
+                                           class="ratio-input" 
+                                           data-rank="${i}" 
+                                           value="${r}" 
+                                           autocomplete="off" 
+                                           autocorrect="off" 
+                                           autocapitalize="off" 
+                                           spellcheck="false" 
+                                           aria-autocomplete="none"
+                                           data-lpignore="true" 
+                                           data-1p-ignore="true" 
+                                           data-form-type="other"
+                                           name="ratio_rank_${i}_noautofill">
+                                    <span class="percent-sign">%</span>
+                                </div>
+                            </td>
+                        `).join('')}
+                        <td class="cell-total-ratio">${ratioSumFixed}%</td>
+                    </tr>
+                </tbody>
+            `;
 
-        const tableElem = document.getElementById('calc-table');
-        if (tableElem) tableElem.innerHTML = tableHtml;
+            const tableElem = document.getElementById('calc-table');
+            if (tableElem) tableElem.innerHTML = tableHtml;
 
-        // 비율 input 이벤트 바인딩
-        document.querySelectorAll('.ratio-input').forEach(input => {
-            input.addEventListener('change', (e) => {
-                const idx = Number(e.target.dataset.rank);
-                const val = Number(e.target.value) || 0;
-                this.calcState.ratios[idx] = val;
-                this.updateCalcTable();
+            // 비율 input 이벤트 바인딩 (input & change 반응)
+            document.querySelectorAll('.ratio-input').forEach(input => {
+                const handleRatioChange = (e) => {
+                    const idx = Number(e.target.dataset.rank);
+                    const cleanStr = e.target.value.replace(/[^0-9.]/g, '');
+                    const val = parseFloat(cleanStr);
+                    this.calcState.ratios[idx] = isNaN(val) ? 0 : val;
+                    this.updateCalcTable({ keepDOM: true });
+                };
+                input.addEventListener('input', handleRatioChange);
+                input.addEventListener('change', handleRatioChange);
             });
-        });
+        } else {
+            // keepDOM 모드: 기존 input을 유지하며 계산 셀만 업데이트
+            const tableElem = document.getElementById('calc-table');
+            if (tableElem) {
+                const golfCells = tableElem.querySelectorAll('.row-golf .cell-val');
+                golfCells.forEach((c, idx) => { if (golfPerRank[idx] !== undefined) c.textContent = Utils.formatVND(golfPerRank[idx]); });
+                const golfTotalCell = tableElem.querySelector('.row-golf .cell-total');
+                if (golfTotalCell) golfTotalCell.textContent = Utils.formatVND(golfTotal);
+
+                const mealCells = tableElem.querySelectorAll('.row-meal .cell-val');
+                mealCells.forEach((c, idx) => { if (mealPerRank[idx] !== undefined) c.textContent = Utils.formatVND(mealPerRank[idx]); });
+                const mealTotalCell = tableElem.querySelector('.row-meal .cell-total');
+                if (mealTotalCell) mealTotalCell.textContent = Utils.formatVND(mealTotal);
+
+                const ttlCells = tableElem.querySelectorAll('.row-ttl .cell-val-ttl');
+                ttlCells.forEach((c, idx) => { if (ttlPerRank[idx] !== undefined) c.textContent = Utils.formatVND(ttlPerRank[idx]); });
+                const ttlTotalCell = tableElem.querySelector('.row-ttl .cell-total-ttl');
+                if (ttlTotalCell) ttlTotalCell.textContent = Utils.formatVND(ttlGrandTotal);
+
+                const ratioTotalCell = tableElem.querySelector('.cell-total-ratio');
+                if (ratioTotalCell) ratioTotalCell.textContent = `${ratioSumFixed}%`;
+            }
+        }
 
         // 🎨 산뜻하고 깔끔한 비주얼 카드 시트 생성
         const visualElem = document.getElementById('notice-preview-visual');

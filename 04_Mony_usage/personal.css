@@ -1,0 +1,13 @@
+/* personal.css — Personal Ledger page styles */
+.personal-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+}
+
+@media (max-width: 768px) {
+    .personal-summary {
+        grid-template-columns: 1fr;
+    }
+}

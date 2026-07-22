@@ -1,0 +1,21 @@
+{
+    "name": "Mony Dashboard - 자산 & 모임 관리",
+    "short_name": "Mony",
+    "description": "개인 자산 및 회사 모임(총무) 통합 대시보드",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#0a0e1a",
+    "theme_color": "#6366f1",
+    "icons": [
+        {
+            "src": "icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ],
+    "categories": ["finance", "productivity"],
+    "lang": "ko",
+    "dir": "ltr"
+}
