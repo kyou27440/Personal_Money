@@ -565,10 +565,10 @@ const ClubPage = {
                 <tr class="row-ratio">
                     <td class="cell-label">배분 비율</td>
                     ${ratios.map((r, i) => `
-                        <td class="cell-ratio">
-                            <div class="ratio-input-wrapper">
-                                <input type="number" step="0.5" class="ratio-input" data-rank="${i}" value="${r}">
-                                <span class="percent-sign">%</span>
+                        <td class="cell-ratio" style="text-align:center;padding:6px;background:var(--bg-secondary);">
+                            <div class="ratio-input-wrapper" style="display:inline-flex;align-items:center;justify-content:center;gap:3px;background:#0f172a;border:1.5px solid #38bdf8;border-radius:8px;padding:4px 8px;box-shadow:inset 0 1px 3px rgba(0,0,0,0.4);">
+                                <input type="number" step="0.5" class="ratio-input" data-rank="${i}" value="${r}" style="width:48px;border:none;background:transparent;text-align:center;font-weight:800;color:#ffffff !important;font-size:0.95rem;outline:none;">
+                                <span class="percent-sign" style="font-size:0.85rem;color:#38bdf8;font-weight:700;">%</span>
                             </div>
                         </td>
                     `).join('')}
