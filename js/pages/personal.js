@@ -24,7 +24,11 @@ const PersonalPage = {
         </div>
 
         <div class="section-header">
-            <span class="section-title">거래 내역</span>
+            <div class="flex items-center gap-sm">
+                <span class="section-title">거래 내역</span>
+                <button class="btn btn-danger btn-sm hidden" id="btn-bulk-delete-tx">🗑️ 선택 삭제 (<span id="selected-tx-count">0</span>개)</button>
+                <button class="btn btn-ghost btn-sm hidden" id="btn-select-zero-tx" style="border-color:var(--accent-amber);color:var(--accent-amber)">⚠️ 0원 내역 선택</button>
+            </div>
             <div class="flex gap-sm">
                 <button class="btn btn-primary" id="btn-add-tx">+ 입력</button>
                 <button class="btn btn-ghost" id="btn-manage-cat">카테고리 관리</button>
@@ -51,10 +55,13 @@ const PersonalPage = {
         <div class="table-wrapper">
             <table>
                 <thead><tr>
+                    <th style="width:40px;text-align:center">
+                        <input type="checkbox" id="select-all-tx" title="전체 선택" style="cursor:pointer;width:16px;height:16px">
+                    </th>
                     <th>날짜</th><th>구분</th><th>수단</th><th>카테고리</th><th style="text-align:right">금액 (VND)</th><th>메모</th><th>작업</th>
                 </tr></thead>
                 <tbody id="tx-table-body">
-                    <tr><td colspan="7" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
                 </tbody>
             </table>
         </div>`;
@@ -64,6 +71,27 @@ const PersonalPage = {
         document.getElementById('btn-add-tx')?.addEventListener('click', () => this.openTxModal());
         document.getElementById('btn-manage-cat')?.addEventListener('click', () => this.openCategoryModal());
         document.getElementById('btn-filter-tx')?.addEventListener('click', () => this.loadTransactions());
+        document.getElementById('btn-bulk-delete-tx')?.addEventListener('click', () => this.bulkDeleteTx());
+        document.getElementById('btn-select-zero-tx')?.addEventListener('click', () => this.selectZeroTx());
+
+        const selectAllCb = document.getElementById('select-all-tx');
+        if (selectAllCb) {
+            selectAllCb.addEventListener('change', (e) => {
+                const cbs = document.querySelectorAll('.tx-cb');
+                cbs.forEach(cb => cb.checked = e.target.checked);
+                this.updateBulkDeleteButton();
+            });
+        }
+
+        const tbody = document.getElementById('tx-table-body');
+        if (tbody) {
+            tbody.addEventListener('change', (e) => {
+                if (e.target.classList.contains('tx-cb')) {
+                    this.updateBulkDeleteButton();
+                }
+            });
+        }
+
         await this.loadTransactions();
     },
 
@@ -93,11 +121,16 @@ const PersonalPage = {
         const tbody = document.getElementById('tx-table-body');
         if (!tbody) return;
 
+        const selectAllCb = document.getElementById('select-all-tx');
+        if (selectAllCb) selectAllCb.checked = false;
+
         if (txList.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:40px">거래 내역이 없습니다</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted" style="padding:40px">거래 내역이 없습니다</td></tr>';
+            this.updateBulkDeleteButton();
             return;
         }
 
+        let hasZeroTx = false;
         tbody.innerHTML = txList.map(tx => {
             const isIncome = String(tx.type).trim().toLowerCase() === 'income';
             const methodLabel = tx.payment_method === 'cash' ? '💵 현금' : '💳 계좌이체';
@@ -105,15 +138,20 @@ const PersonalPage = {
             const typeBadge = isIncome ? '<span class="badge badge-income">수입</span>' : '<span class="badge badge-expense">지출</span>';
             const colorClass = isIncome ? 'text-emerald' : 'text-rose';
             const sign = isIncome ? '+' : '-';
+            const amt = Utils.parseAmount(tx.amount);
+            if (amt === 0) hasZeroTx = true;
 
             return `
             <tr>
+                <td style="text-align:center">
+                    <input type="checkbox" class="tx-cb" data-id="${tx.id}" data-amount="${amt}" style="cursor:pointer;width:16px;height:16px">
+                </td>
                 <td>${Utils.formatDateKR(tx.tx_date)}</td>
                 <td>${typeBadge}</td>
                 <td><span class="badge ${methodClass}" style="font-size:0.75rem;padding:2px 8px">${methodLabel}</span></td>
                 <td>${tx.personal_categories?.icon || '💰'} ${Utils.escapeHtml(tx.personal_categories?.name || '기타')}</td>
                 <td style="text-align:right;font-weight:600" class="${colorClass}">${sign}${Utils.formatVND(tx.amount)}</td>
-                <td class="text-secondary">${Utils.escapeHtml(tx.memo)}</td>
+                <td class="text-secondary">${Utils.escapeHtml(tx.memo || '')}</td>
                 <td>
                     <button class="btn btn-icon btn-sm" onclick="PersonalPage.editTx('${tx.id}')" title="수정">✏️</button>
                     <button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteTx('${tx.id}')" title="삭제">🗑️</button>
@@ -121,6 +159,14 @@ const PersonalPage = {
             </tr>
             `;
         }).join('');
+
+        const selectZeroBtn = document.getElementById('btn-select-zero-tx');
+        if (selectZeroBtn) {
+            if (hasZeroTx) selectZeroBtn.classList.remove('hidden');
+            else selectZeroBtn.classList.add('hidden');
+        }
+
+        this.updateBulkDeleteButton();
     },
 
     async openTxModal(editTx = null) {
@@ -242,6 +288,61 @@ const PersonalPage = {
                 Utils.toast('삭제되었습니다', 'success');
                 await this.loadTransactions();
                 await this.refreshSummary();
+            }
+        }
+    },
+
+    updateBulkDeleteButton() {
+        const checkedCbs = document.querySelectorAll('.tx-cb:checked');
+        const allCbs = document.querySelectorAll('.tx-cb');
+        const bulkBtn = document.getElementById('btn-bulk-delete-tx');
+        const countEl = document.getElementById('selected-tx-count');
+        const selectAllCb = document.getElementById('select-all-tx');
+
+        const count = checkedCbs.length;
+        if (countEl) countEl.textContent = count;
+
+        if (bulkBtn) {
+            if (count > 0) bulkBtn.classList.remove('hidden');
+            else bulkBtn.classList.add('hidden');
+        }
+
+        if (selectAllCb && allCbs.length > 0) {
+            selectAllCb.checked = checkedCbs.length === allCbs.length;
+        }
+    },
+
+    selectZeroTx() {
+        const cbs = document.querySelectorAll('.tx-cb');
+        let count = 0;
+        cbs.forEach(cb => {
+            if (parseFloat(cb.dataset.amount || '0') === 0) {
+                cb.checked = true;
+                count++;
+            }
+        });
+        this.updateBulkDeleteButton();
+        if (count > 0) {
+            Utils.toast(`0원 거래 내역 ${count}개가 선택되었습니다`, 'info');
+        } else {
+            Utils.toast('0원 거래 내역이 없습니다', 'info');
+        }
+    },
+
+    async bulkDeleteTx() {
+        const checkedCbs = document.querySelectorAll('.tx-cb:checked');
+        const ids = Array.from(checkedCbs).map(cb => cb.dataset.id);
+        if (ids.length === 0) return;
+
+        const ok = await Modal.confirm('일괄 삭제', `선택한 ${ids.length}개의 거래 내역을 삭제하시겠습니까?`);
+        if (ok) {
+            const result = await Store.deleteTransactions(ids);
+            if (result) {
+                Utils.toast(`${ids.length}개의 거래 내역이 삭제되었습니다`, 'success');
+                await this.loadTransactions();
+                await this.refreshSummary();
+            } else {
+                Utils.toast('삭제 중 오류가 발생했습니다', 'error');
             }
         }
     },
