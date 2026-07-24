@@ -1,6 +1,5 @@
 /* ============================================
-   STORE.JS — Supabase 클라우드 (1순위) + LocalStorage (백업) DAL
-   타 PC & 모바일에서 실시간 클라우드 데이터 동기화 지원
+   STORE.JS — Supabase 클라우드 (1순위) + LocalStorage 키 자동 마이그레이션 DAL
    ============================================ */
 if (typeof supabase === 'undefined' || typeof supabase.from !== 'function') {
     var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY || SUPABASE_ANON_KEY);
@@ -20,15 +19,23 @@ const DEFAULT_CATEGORIES = [
 
 const Store = {
 
-    // ─── LocalStorage Helpers ───
+    // ─── LocalStorage Helpers (모든 구버전 키 호환 마이그레이션) ───
     _getLocal(key, defaultVal = []) {
         try {
-            const val = localStorage.getItem('mymoney_' + key);
-            return val ? JSON.parse(val) : defaultVal;
+            // 현재 키
+            let raw = localStorage.getItem('mymoney_' + key);
+            // 구버전 키 자동 탐색
+            if (!raw) raw = localStorage.getItem('mony_usage_personal_' + key);
+            if (!raw) raw = localStorage.getItem('mony_usage_' + key);
+
+            return raw ? JSON.parse(raw) : defaultVal;
         } catch(e) { return defaultVal; }
     },
     _setLocal(key, val) {
-        try { localStorage.setItem('mymoney_' + key, JSON.stringify(val)); } catch(e) {}
+        try {
+            localStorage.setItem('mymoney_' + key, JSON.stringify(val));
+            localStorage.setItem('mony_usage_personal_' + key, JSON.stringify(val));
+        } catch(e) {}
     },
 
     // ─── 개인 가계부: 카테고리 ───
@@ -93,13 +100,14 @@ const Store = {
         return true;
     },
 
-    // ─── 개인 가계부: 거래 (클라우드 우선 동기화) ───
+    // ─── 개인 가계부: 거래 (클라우드 + 로컬 데이터 자동 복구) ───
 
     async getTransactions(filters = {}) {
         const cats = await this.getCategories();
         const catMap = {};
         cats.forEach(c => catMap[c.id] = c);
 
+        let dbTx = [];
         try {
             let q = supabase.from('personal_transactions').select('*, personal_categories(name, icon)').order('tx_date', { ascending: false }).order('created_at', { ascending: false });
             if (filters.startDate) q = q.gte('tx_date', filters.startDate);
@@ -109,32 +117,45 @@ const Store = {
             if (filters.payment_method) q = q.eq('payment_method', filters.payment_method);
             if (filters.limit) q = q.limit(filters.limit);
             const { data, error } = await q;
-
-            if (!error && data) {
-                // DB 데이터 우선 사용 & LocalStorage와 동기화
-                this._setLocal('transactions', data);
-                return data.map(t => ({
-                    ...t,
-                    personal_categories: t.personal_categories || catMap[t.category_id] || { name: '기타', icon: '💰' }
-                }));
-            }
+            if (!error && data) dbTx = data;
         } catch(e) {}
 
-        // Supabase 연결 안될 때 LocalStorage 폴백
+        // 로컬 데이터 (구버전 키 데이터 자동 통합)
         let localTx = this._getLocal('transactions', []);
-        if (filters.startDate) localTx = localTx.filter(t => t.tx_date >= filters.startDate);
-        if (filters.endDate) localTx = localTx.filter(t => t.tx_date <= filters.endDate);
-        if (filters.type) localTx = localTx.filter(t => t.type === filters.type);
-        if (filters.category_id) localTx = localTx.filter(t => t.category_id == filters.category_id);
-        if (filters.payment_method) localTx = localTx.filter(t => t.payment_method === filters.payment_method);
+        let oldPersonalTx = this._getLocal('personal_transactions', []);
+        
+        let combinedLocal = [...localTx, ...oldPersonalTx];
 
-        localTx.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date));
-        if (filters.limit) localTx = localTx.slice(0, filters.limit);
+        if (filters.startDate) combinedLocal = combinedLocal.filter(t => t.tx_date >= filters.startDate);
+        if (filters.endDate) combinedLocal = combinedLocal.filter(t => t.tx_date <= filters.endDate);
+        if (filters.type) combinedLocal = combinedLocal.filter(t => t.type === filters.type);
+        if (filters.category_id) combinedLocal = combinedLocal.filter(t => t.category_id == filters.category_id);
+        if (filters.payment_method) combinedLocal = combinedLocal.filter(t => t.payment_method === filters.payment_method);
 
-        return localTx.map(t => ({
-            ...t,
-            personal_categories: t.personal_categories || catMap[t.category_id] || { name: '기타', icon: '💰' }
-        }));
+        // 중복 방지 병합 (id 기준)
+        const txMap = {};
+        combinedLocal.forEach(t => {
+            if (t.id) {
+                txMap[t.id] = {
+                    ...t,
+                    personal_categories: t.personal_categories || catMap[t.category_id] || { name: '기타', icon: '💰' }
+                };
+            }
+        });
+        dbTx.forEach(t => {
+            if (t.id) {
+                txMap[t.id] = {
+                    ...t,
+                    personal_categories: t.personal_categories || catMap[t.category_id] || { name: '기타', icon: '💰' }
+                };
+            }
+        });
+
+        let result = Object.values(txMap);
+        result.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+        if (filters.limit) result = result.slice(0, filters.limit);
+        return result;
     },
 
     async addTransaction(tx) {
