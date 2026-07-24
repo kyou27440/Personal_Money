@@ -34,8 +34,11 @@ const ExchangePage = {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>환율 (1 KRW = ? VND)</label>
-                    <input type="number" id="calc-rate" value="${defaultRate}" step="0.1">
+                    <div class="flex items-center justify-between" style="margin-bottom:6px">
+                        <label style="margin:0">환율 (1 KRW = ? VND)</label>
+                        <button class="btn btn-ghost btn-sm" id="btn-fetch-calc-rate" style="padding:2px 8px;font-size:0.75rem;border-color:var(--accent-indigo);color:var(--text-accent)">⚡ 실시간 환율 불러오기</button>
+                    </div>
+                    <input type="number" id="calc-rate" value="${defaultRate}" step="0.01">
                 </div>
                 <div class="form-group">
                     <label id="calc-input-label">KRW 금액</label>
@@ -103,6 +106,18 @@ const ExchangePage = {
         calcInput.addEventListener('input', calculate);
         calcRate.addEventListener('input', calculate);
 
+        document.getElementById('btn-fetch-calc-rate')?.addEventListener('click', async () => {
+            Utils.toast('실시간 매매기준 환율 조회 중...', 'info');
+            const liveRate = await Utils.fetchLiveExchangeRate();
+            if (liveRate) {
+                calcRate.value = liveRate;
+                calculate();
+                Utils.toast(`실시간 매매기준 환율 (1 KRW = ${liveRate} VND) 적용 완료`, 'success');
+            } else {
+                Utils.toast('실시간 환율을 불러오는데 실패했습니다', 'error');
+            }
+        });
+
         await this.loadExchanges();
     },
 
@@ -147,7 +162,13 @@ const ExchangePage = {
                         <option value="KRW_TO_VND">KRW 지급 → VND 수령</option>
                     </select>
                 </div>
-                <div class="form-group"><label>환율 (1 KRW = ? VND)</label><input type="number" id="ex-rate" value="${defaultRate}" step="0.1"></div>
+                <div class="form-group">
+                    <div class="flex items-center justify-between" style="margin-bottom:6px">
+                        <label style="margin:0">환율 (1 KRW = ? VND)</label>
+                        <button class="btn btn-ghost btn-sm" id="btn-fetch-modal-rate" type="button" style="padding:2px 8px;font-size:0.75rem;border-color:var(--accent-indigo);color:var(--text-accent)">⚡ 실시간 환율</button>
+                    </div>
+                    <input type="number" id="ex-rate" value="${defaultRate}" step="0.01">
+                </div>
                 <div class="form-group"><label>VND 금액</label><input type="text" id="ex-vnd" placeholder="예: 5000000" inputmode="numeric"></div>
                 <div class="form-group"><label>KRW 금액</label><input type="text" id="ex-krw" placeholder="자동 계산" inputmode="numeric"></div>
             </div>
@@ -158,6 +179,21 @@ const ExchangePage = {
         const vndInput = document.getElementById('ex-vnd');
         const krwInput = document.getElementById('ex-krw');
         const rateInput = document.getElementById('ex-rate');
+
+        document.getElementById('btn-fetch-modal-rate')?.addEventListener('click', async () => {
+            Utils.toast('실시간 매매기준 환율 조회 중...', 'info');
+            const liveRate = await Utils.fetchLiveExchangeRate();
+            if (liveRate) {
+                rateInput.value = liveRate;
+                const vnd = Utils.parseAmount(vndInput.value);
+                const krw = Utils.parseAmount(krwInput.value);
+                if (vnd > 0) krwInput.value = Math.round(vnd / liveRate);
+                else if (krw > 0) vndInput.value = Math.round(krw * liveRate);
+                Utils.toast(`실시간 매매기준 환율 (1 KRW = ${liveRate} VND) 적용 완료`, 'success');
+            } else {
+                Utils.toast('실시간 환율을 불러오는데 실패했습니다', 'error');
+            }
+        });
 
         vndInput.addEventListener('input', () => {
             const vnd = Utils.parseAmount(vndInput.value);
