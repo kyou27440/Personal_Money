@@ -22,8 +22,8 @@ const DashboardPage = {
                 </div>
             </div>
             <div style="text-align:right;">
-                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v1.0.6 (0원 정리 & 일괄 삭제)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-24 14:23</div>
+                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v1.0.7 (금액 파싱 보완 & 캐시 갱신)</span>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-24 16:15</div>
             </div>
         </div>
 
