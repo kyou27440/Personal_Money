@@ -17,6 +17,8 @@ const DEFAULT_CATEGORIES = [
     { id: 9, name: '기타 수입', type: 'income', icon: '🎁', sort_order: 3, is_active: true }
 ];
 
+const Store = {
+
     // ─── LocalStorage 전수 정제 & 구형 데이터 완전 차단 ───
     _cleanLegacyLocalStorage() {
         try {
