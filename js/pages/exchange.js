@@ -18,14 +18,23 @@ const ExchangePage = {
                 <div class="card-value">${Utils.formatKRW(exTotal.krw)}</div>
             </div>
             <div class="summary-card emerald">
-                <div class="card-label">기본 환율</div>
-                <div class="card-value">1 KRW = ${defaultRate} VND</div>
+                <div class="card-label">Naver 매매기준율 (실시간)</div>
+                <div class="card-value">1 KRW = <span id="summary-rate-val">조회 중...</span></div>
             </div>
         </div>
 
         <div class="card mb-lg">
-            <div class="card-header"><span class="card-title">💱 환전 계산기</span></div>
-            <div class="form-grid">
+            <div class="card-header flex items-center justify-between">
+                <span class="card-title">💱 환전 계산기</span>
+                <button class="btn btn-ghost btn-sm" id="btn-import-tx-calc" style="border-color:var(--accent-emerald);color:var(--accent-emerald)">
+                    📥 해당 날짜 가계부 합계 불러오기
+                </button>
+            </div>
+            <div class="form-grid mb-md">
+                <div class="form-group">
+                    <label>날짜</label>
+                    <input type="date" id="calc-date" value="${Utils.today()}">
+                </div>
                 <div class="form-group">
                     <label>환전 방향</label>
                     <select id="calc-direction">
@@ -84,6 +93,8 @@ const ExchangePage = {
         const calcDir = document.getElementById('calc-direction');
         const calcResult = document.getElementById('calc-result');
         const calcLabel = document.getElementById('calc-input-label');
+        const calcDate = document.getElementById('calc-date');
+        const rateValEl = document.getElementById('summary-rate-val');
 
         const calculate = () => {
             const amount = Utils.parseAmount(calcInput.value);
@@ -97,6 +108,19 @@ const ExchangePage = {
             }
         };
 
+        // Naver 실시간 매매기준율 자동 조회
+        Utils.fetchLiveExchangeRate().then(liveRate => {
+            if (liveRate) {
+                if (rateValEl) rateValEl.textContent = `${liveRate} VND`;
+                if (calcRate) {
+                    calcRate.value = liveRate;
+                    calculate();
+                }
+            } else if (rateValEl) {
+                rateValEl.textContent = `${defaultRate} VND (기본)`;
+            }
+        });
+
         calcDir.addEventListener('change', () => {
             calcLabel.textContent = calcDir.value === 'KRW_TO_VND' ? 'KRW 금액' : 'VND 금액';
             calcInput.value = '';
@@ -107,14 +131,40 @@ const ExchangePage = {
         calcRate.addEventListener('input', calculate);
 
         document.getElementById('btn-fetch-calc-rate')?.addEventListener('click', async () => {
-            Utils.toast('실시간 매매기준 환율 조회 중...', 'info');
+            Utils.toast('Naver 실시간 매매기준 환율 조회 중...', 'info');
             const liveRate = await Utils.fetchLiveExchangeRate();
             if (liveRate) {
                 calcRate.value = liveRate;
+                if (rateValEl) rateValEl.textContent = `${liveRate} VND`;
                 calculate();
-                Utils.toast(`실시간 매매기준 환율 (1 KRW = ${liveRate} VND) 적용 완료`, 'success');
+                Utils.toast(`Naver 매매기준 환율 (1 KRW = ${liveRate} VND) 적용 완료`, 'success');
             } else {
                 Utils.toast('실시간 환율을 불러오는데 실패했습니다', 'error');
+            }
+        });
+
+        // 해당 날짜 가계부 수입/지출 내역 불러오기
+        document.getElementById('btn-import-tx-calc')?.addEventListener('click', async () => {
+            const selectedDate = calcDate?.value || Utils.today();
+            const txList = await Store.getTransactions({ startDate: selectedDate, endDate: selectedDate });
+            
+            if (!txList || txList.length === 0) {
+                Utils.toast(`${selectedDate} 날짜의 가계부 거래 내역이 없습니다`, 'info');
+                return;
+            }
+
+            let totalAmount = 0;
+            txList.forEach(t => {
+                const amt = Utils.parseAmount(t.amount);
+                if (amt > 0) totalAmount += amt;
+            });
+
+            if (totalAmount > 0) {
+                calcInput.value = totalAmount;
+                calculate();
+                Utils.toast(`${selectedDate} 가계부 거래 합계 (${Utils.formatVND(totalAmount)})를 불러왔습니다`, 'success');
+            } else {
+                Utils.toast(`${selectedDate} 날짜의 유효한 거래 금액이 0원입니다`, 'info');
             }
         });
 
