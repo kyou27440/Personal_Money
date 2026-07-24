@@ -27,19 +27,32 @@ const Store = {
                 const k = localStorage.key(i);
                 if (!k) continue;
                 const lowerK = k.toLowerCase();
-                if (lowerK.includes('transaction') || lowerK.includes('ledger') || lowerK.includes('mony') || lowerK.includes('personal') || lowerK.includes('tx')) {
+                // 카테고리, 설정, 환전 등 무관한 키는 탐색 대상에서 제외
+                if (lowerK.includes('category') || lowerK.includes('categories') || lowerK.includes('setting') || lowerK.includes('exchange')) {
+                    continue;
+                }
+                if (lowerK.includes('transaction') || lowerK.includes('ledger') || lowerK.includes('tx')) {
                     try {
                         const raw = localStorage.getItem(k);
                         if (!raw) continue;
                         const parsed = JSON.parse(raw);
-                        if (Array.isArray(parsed)) {
-                            parsed.forEach(item => {
-                                if (item && typeof item === 'object' && (item.amount !== undefined || item.type !== undefined)) {
+                        const processItem = (item) => {
+                            if (item && typeof item === 'object') {
+                                // 카테고리 객체 특성(sort_order, is_active만 있는 경우) 제외
+                                if (item.sort_order !== undefined || (item.is_active !== undefined && item.amount === undefined)) {
+                                    return;
+                                }
+                                const amt = Utils.parseAmount(item.amount);
+                                // 실제 거래 항목(금액이 0 초과이거나 거래 유효 데이터)만 포함
+                                if (amt > 0 || item.payment_method || (item.tx_date && item.category_id)) {
                                     found.push(item);
                                 }
-                            });
-                        } else if (parsed && typeof parsed === 'object' && (parsed.amount !== undefined || parsed.type !== undefined)) {
-                            found.push(parsed);
+                            }
+                        };
+                        if (Array.isArray(parsed)) {
+                            parsed.forEach(processItem);
+                        } else if (parsed && typeof parsed === 'object') {
+                            processItem(parsed);
                         }
                     } catch(e) {}
                 }
@@ -320,15 +333,40 @@ const Store = {
         return null;
     },
 
-    async deleteTransaction(id) {
-        try {
-            await supabase.from('personal_transactions').delete().eq('id', id);
-        } catch(e) {}
+    async deleteTransactions(ids) {
+        if (!Array.isArray(ids) || ids.length === 0) return true;
+        const targetIds = new Set(ids.map(id => String(id)));
 
-        let list = await this.getTransactions({});
-        list = list.filter(t => String(t.id) !== String(id));
-        this._setLocal('transactions', list);
+        // Supabase DB 삭제
+        try {
+            const dbIds = Array.from(targetIds).filter(id => !id.startsWith('local_'));
+            if (dbIds.length > 0) {
+                await supabase.from('personal_transactions').delete().in('id', dbIds);
+            }
+        } catch(e) {
+            console.error('Supabase 삭제 오류:', e);
+        }
+
+        // 로컬 데이터 전수 정제 (모든 관련 키에서 완벽 제거)
+        const keysToClean = ['mymoney_transactions', 'mony_usage_personal_transactions'];
+        keysToClean.forEach(key => {
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) {
+                        const updated = parsed.filter(t => t && !targetIds.has(String(t.id)));
+                        localStorage.setItem(key, JSON.stringify(updated));
+                    }
+                }
+            } catch(e) {}
+        });
+
         return true;
+    },
+
+    async deleteTransaction(id) {
+        return await this.deleteTransactions([id]);
     },
 
     async getTransactionSummary(startDate, endDate) {
