@@ -153,5 +153,30 @@ const Utils = {
     chartColors: [
         '#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b',
         '#f43f5e', '#3b82f6', '#ec4899', '#14b8a6', '#a855f7'
-    ]
+    ],
+
+    /** 실시간 KRW->VND 매매기준 환율 가져오기 */
+    async fetchLiveExchangeRate() {
+        try {
+            const res = await fetch('https://open.er-api.com/v6/latest/KRW');
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.rates && data.rates.VND) {
+                    return parseFloat(data.rates.VND.toFixed(2));
+                }
+            }
+        } catch(e) {}
+
+        try {
+            const res2 = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/krw.json');
+            if (res2.ok) {
+                const data2 = await res2.json();
+                if (data2 && data2.krw && data2.krw.vnd) {
+                    return parseFloat(data2.krw.vnd.toFixed(2));
+                }
+            }
+        } catch(e) {}
+
+        return null;
+    }
 };
