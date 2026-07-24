@@ -1,5 +1,5 @@
 /* ============================================
-   STORE.JS — 데이터 무결성 강화 Supabase + LocalStorage DAL
+   STORE.JS — 데이터 전수 스캔 복구 및 무결성 DAL
    ============================================ */
 if (typeof supabase === 'undefined' || typeof supabase.from !== 'function') {
     var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY || SUPABASE_ANON_KEY);
@@ -19,15 +19,46 @@ const DEFAULT_CATEGORIES = [
 
 const Store = {
 
-    // ─── LocalStorage Helper ───
+    // ─── LocalStorage 전수 스캔 복구 엔진 ───
+    _scanAndRestoreAllTransactions() {
+        const found = [];
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (!k) continue;
+                const lowerK = k.toLowerCase();
+                if (lowerK.includes('transaction') || lowerK.includes('ledger') || lowerK.includes('mony') || lowerK.includes('personal') || lowerK.includes('tx')) {
+                    try {
+                        const raw = localStorage.getItem(k);
+                        if (!raw) continue;
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                            parsed.forEach(item => {
+                                if (item && typeof item === 'object' && (item.amount !== undefined || item.type !== undefined || item.tx_date !== undefined)) {
+                                    found.push(item);
+                                }
+                            });
+                        } else if (parsed && typeof parsed === 'object' && (parsed.amount !== undefined || parsed.type !== undefined)) {
+                            found.push(parsed);
+                        }
+                    } catch(e) {}
+                }
+            }
+        } catch(e) {}
+        return found;
+    },
+
     _getLocal(key, defaultVal = []) {
         try {
-            let raw = localStorage.getItem('mymoney_' + key);
-            if (!raw) raw = localStorage.getItem('mony_usage_personal_' + key);
-            if (!raw) raw = localStorage.getItem('mony_usage_' + key);
-            return raw ? JSON.parse(raw) : defaultVal;
-        } catch(e) { return defaultVal; }
+            const raw = localStorage.getItem('mymoney_' + key);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch(e) {}
+        return defaultVal;
     },
+
     _setLocal(key, val) {
         try {
             localStorage.setItem('mymoney_' + key, JSON.stringify(val));
@@ -107,7 +138,7 @@ const Store = {
         return true;
     },
 
-    // ─── 개인 가계부: 거래 ───
+    // ─── 개인 가계부: 거래 (전수 스캔 100% 복구 엔진 포함) ───
 
     async getTransactions(filters = {}) {
         const cats = await this.getCategories();
@@ -127,44 +158,44 @@ const Store = {
             if (!error && data) dbTx = data;
         } catch(e) {}
 
-        // LocalStorage 거래 데이터
-        let localTx = this._getLocal('transactions', []);
-        let oldPersonalTx = this._getLocal('personal_transactions', []);
-        let combinedLocal = [...localTx, ...oldPersonalTx];
+        // 브라우저 내 모든 LocalStorage 키 전수 스캔 발굴
+        const allScanned = this._scanAndRestoreAllTransactions();
 
-        // 필터링 적용 (타입 및 정규화 명확히 처리)
+        // 필터링 적용
+        let filteredLocal = allScanned;
         if (filters.startDate) {
             const startClean = Utils.formatDate(filters.startDate);
-            combinedLocal = combinedLocal.filter(t => Utils.formatDate(t.tx_date) >= startClean);
+            filteredLocal = filteredLocal.filter(t => Utils.formatDate(t.tx_date || Utils.today()) >= startClean);
         }
         if (filters.endDate) {
             const endClean = Utils.formatDate(filters.endDate);
-            combinedLocal = combinedLocal.filter(t => Utils.formatDate(t.tx_date) <= endClean);
+            filteredLocal = filteredLocal.filter(t => Utils.formatDate(t.tx_date || Utils.today()) <= endClean);
         }
         if (filters.type && filters.type.trim() !== '') {
             const targetType = filters.type.trim().toLowerCase();
-            combinedLocal = combinedLocal.filter(t => String(t.type).trim().toLowerCase() === targetType);
+            filteredLocal = filteredLocal.filter(t => String(t.type || 'expense').trim().toLowerCase() === targetType);
         }
         if (filters.category_id) {
-            combinedLocal = combinedLocal.filter(t => String(t.category_id) === String(filters.category_id));
+            filteredLocal = filteredLocal.filter(t => String(t.category_id) === String(filters.category_id));
         }
         if (filters.payment_method && filters.payment_method.trim() !== '') {
-            combinedLocal = combinedLocal.filter(t => String(t.payment_method).trim() === filters.payment_method.trim());
+            filteredLocal = filteredLocal.filter(t => String(t.payment_method || 'transfer').trim() === filters.payment_method.trim());
         }
 
-        // DB와 로컬 데이터 100% 병합 (ID 기준)
+        // DB와 발굴된 로컬 데이터 100% 통합 및 중복 제거
         const txMap = {};
-        combinedLocal.forEach(t => {
-            if (t.id) {
-                const cObj = t.personal_categories || catMap[String(t.category_id)] || { name: '기타', icon: '💰' };
-                txMap[String(t.id)] = {
-                    ...t,
-                    tx_date: Utils.formatDate(t.tx_date),
-                    type: String(t.type || 'expense').trim().toLowerCase(),
-                    amount: Utils.parseAmount(t.amount),
-                    personal_categories: cObj
-                };
-            }
+        filteredLocal.forEach(t => {
+            const idKey = t.id ? String(t.id) : ('legacy_' + (t.tx_date || '') + '_' + (t.amount || '') + '_' + (t.type || ''));
+            const cObj = t.personal_categories || catMap[String(t.category_id)] || { name: '기타', icon: '💰' };
+            txMap[idKey] = {
+                ...t,
+                id: idKey,
+                tx_date: Utils.formatDate(t.tx_date || Utils.today()),
+                type: String(t.type || 'expense').trim().toLowerCase(),
+                amount: Utils.parseAmount(t.amount),
+                payment_method: t.payment_method || 'transfer',
+                personal_categories: cObj
+            };
         });
 
         dbTx.forEach(t => {
@@ -175,6 +206,7 @@ const Store = {
                     tx_date: Utils.formatDate(t.tx_date),
                     type: String(t.type || 'expense').trim().toLowerCase(),
                     amount: Utils.parseAmount(t.amount),
+                    payment_method: t.payment_method || 'transfer',
                     personal_categories: cObj
                 };
             }
@@ -182,6 +214,11 @@ const Store = {
 
         let result = Object.values(txMap);
         result.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+        // 최신 키로 마이그레이션 백업
+        if (result.length > 0) {
+            this._setLocal('transactions', result);
+        }
 
         if (filters.limit) result = result.slice(0, filters.limit);
         return result;
@@ -216,7 +253,7 @@ const Store = {
             personal_categories: cat
         };
 
-        const list = this._getLocal('transactions', []);
+        const list = await this.getTransactions({});
         list.unshift(newTx);
         this._setLocal('transactions', list);
 
@@ -233,7 +270,7 @@ const Store = {
             await supabase.from('personal_transactions').update(updates).eq('id', id);
         } catch(e) {}
 
-        const list = this._getLocal('transactions', []);
+        const list = await this.getTransactions({});
         const idx = list.findIndex(t => String(t.id) === String(id));
         if (idx !== -1) {
             list[idx] = { ...list[idx], ...updates };
@@ -248,14 +285,9 @@ const Store = {
             await supabase.from('personal_transactions').delete().eq('id', id);
         } catch(e) {}
 
-        let list = this._getLocal('transactions', []);
+        let list = await this.getTransactions({});
         list = list.filter(t => String(t.id) !== String(id));
         this._setLocal('transactions', list);
-
-        let oldList = this._getLocal('personal_transactions', []);
-        oldList = oldList.filter(t => String(t.id) !== String(id));
-        this._setLocal('personal_transactions', oldList);
-
         return true;
     },
 
