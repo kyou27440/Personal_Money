@@ -3,11 +3,11 @@
    ============================================ */
 
 const Utils = {
-    /** VND 금액 포맷: 1,234,567 ₫ */
+    /** VND 금액 포맷: 1,234,567 ₫ (한국식 쉼표 표기 적용) */
     formatVND(amount) {
         const num = Number(amount);
         if (amount == null || isNaN(num)) return '0 ₫';
-        return num.toLocaleString('vi-VN') + ' ₫';
+        return num.toLocaleString('ko-KR') + ' ₫';
     },
 
     /** KRW 금액 포맷: ₩1,234,567 */
