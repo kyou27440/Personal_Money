@@ -17,44 +17,40 @@ const DEFAULT_CATEGORIES = [
     { id: 9, name: '기타 수입', type: 'income', icon: '🎁', sort_order: 3, is_active: true }
 ];
 
-const Store = {
+    // ─── LocalStorage 전수 정제 & 구형 데이터 완전 차단 ───
+    _cleanLegacyLocalStorage() {
+        try {
+            // 과거 오염을 유발하던 구형 키 삭제
+            ['mony_usage_personal_transactions', 'mony_usage_personal_categories', 'mony_usage_personal_exchanges'].forEach(k => {
+                localStorage.removeItem(k);
+            });
 
-    // ─── LocalStorage 전수 탐색 ───
+            // mymoney_transactions 정제: 금액이 0보다 큰 유효 거래만 보존
+            const raw = localStorage.getItem('mymoney_transactions');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    const clean = parsed.filter(t => t && Utils.parseAmount(t.amount) > 0 && t.type);
+                    localStorage.setItem('mymoney_transactions', JSON.stringify(clean));
+                }
+            }
+        } catch(e) {}
+    },
+
+    // ─── LocalStorage 탐색 ───
     _scanAllLocalTransactions() {
+        this._cleanLegacyLocalStorage();
         const found = [];
         try {
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (!k) continue;
-                const lowerK = k.toLowerCase();
-                // 카테고리, 설정, 환전 등 무관한 키는 탐색 대상에서 제외
-                if (lowerK.includes('category') || lowerK.includes('categories') || lowerK.includes('setting') || lowerK.includes('exchange')) {
-                    continue;
-                }
-                if (lowerK.includes('transaction') || lowerK.includes('ledger') || lowerK.includes('tx')) {
-                    try {
-                        const raw = localStorage.getItem(k);
-                        if (!raw) continue;
-                        const parsed = JSON.parse(raw);
-                        const processItem = (item) => {
-                            if (item && typeof item === 'object') {
-                                // 카테고리 객체 특성(sort_order, is_active만 있는 경우) 제외
-                                if (item.sort_order !== undefined || (item.is_active !== undefined && item.amount === undefined)) {
-                                    return;
-                                }
-                                const amt = Utils.parseAmount(item.amount);
-                                // 실제 거래 항목(금액이 0 초과이거나 거래 유효 데이터)만 포함
-                                if (amt > 0 || item.payment_method || (item.tx_date && item.category_id)) {
-                                    found.push(item);
-                                }
-                            }
-                        };
-                        if (Array.isArray(parsed)) {
-                            parsed.forEach(processItem);
-                        } else if (parsed && typeof parsed === 'object') {
-                            processItem(parsed);
+            const raw = localStorage.getItem('mymoney_transactions');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(item => {
+                        if (item && typeof item === 'object' && Utils.parseAmount(item.amount) > 0) {
+                            found.push(item);
                         }
-                    } catch(e) {}
+                    });
                 }
             }
         } catch(e) {}
