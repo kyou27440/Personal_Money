@@ -46,6 +46,21 @@ const Utils = {
         return isNaN(parsed) ? 0 : Math.round(parsed);
     },
 
+    /** 금액 입력창 실시간 천단위 쉼표 포맷터 바인딩 */
+    bindAmountInputFormatter(inputEl) {
+        if (!inputEl) return;
+        inputEl.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (!val) return;
+            const num = Utils.parseAmount(val);
+            if (num > 0) {
+                e.target.value = num.toLocaleString('ko-KR');
+            } else if (val.trim() === '' || val === '0') {
+                e.target.value = '';
+            }
+        });
+    },
+
     /** 날짜 포맷: YYYY-MM-DD (로컬 시간 기준 정제) */
     formatDate(dateStr) {
         if (!dateStr) return Utils.today();
