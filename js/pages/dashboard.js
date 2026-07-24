@@ -23,7 +23,7 @@ const DashboardPage = {
             </div>
             <div style="text-align:right;">
                 <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.0.2 (한국식 쉼표 표기 적용)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-24 16:35</div>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-24 16:20</div>
             </div>
         </div>
 
