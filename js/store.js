@@ -1,5 +1,5 @@
 /* ============================================
-   STORE.JS — 데이터 전수 스캔 복구 및 무결성 DAL
+   STORE.JS — 클라우드 자동 이관 & 멀티 도메인 완전 동기화 DAL
    ============================================ */
 if (typeof supabase === 'undefined' || typeof supabase.from !== 'function') {
     var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY || SUPABASE_ANON_KEY);
@@ -19,8 +19,8 @@ const DEFAULT_CATEGORIES = [
 
 const Store = {
 
-    // ─── LocalStorage 전수 스캔 복구 엔진 ───
-    _scanAndRestoreAllTransactions() {
+    // ─── LocalStorage 전수 탐색 ───
+    _scanAllLocalTransactions() {
         const found = [];
         try {
             for (let i = 0; i < localStorage.length; i++) {
@@ -34,7 +34,7 @@ const Store = {
                         const parsed = JSON.parse(raw);
                         if (Array.isArray(parsed)) {
                             parsed.forEach(item => {
-                                if (item && typeof item === 'object' && (item.amount !== undefined || item.type !== undefined || item.tx_date !== undefined)) {
+                                if (item && typeof item === 'object' && (item.amount !== undefined || item.type !== undefined)) {
                                     found.push(item);
                                 }
                             });
@@ -66,13 +66,52 @@ const Store = {
         } catch(e) {}
     },
 
+    // ─── 로컬 데이터 ➔ Supabase 클라우드 DB 자동 이관 ───
+    async _syncLocalToCloud() {
+        try {
+            const localTx = this._scanAllLocalTransactions();
+            if (localTx.length === 0) return;
+
+            // DB에 존재하는 데이터 확인
+            const { data: dbTx } = await supabase.from('personal_transactions').select('id, amount, tx_date, type');
+            const existingKeys = new Set((dbTx || []).map(t => `${t.tx_date}_${t.amount}_${t.type}`));
+
+            for (const item of localTx) {
+                const amt = Utils.parseAmount(item.amount);
+                const tType = String(item.type || 'expense').trim().toLowerCase();
+                const dStr = Utils.formatDate(item.tx_date || Utils.today());
+                const key = `${dStr}_${amt}_${tType}`;
+
+                if (amt > 0 && !existingKeys.has(key)) {
+                    // Supabase로 이관
+                    const catId = item.category_id ? (isNaN(Number(item.category_id)) ? 1 : Number(item.category_id)) : (tType === 'income' ? 7 : 1);
+                    const payload = {
+                        tx_date: dStr,
+                        type: tType,
+                        payment_method: item.payment_method || 'transfer',
+                        category_id: catId,
+                        amount: amt,
+                        memo: item.memo || '이전 이관 데이터'
+                    };
+                    const { data, error } = await supabase.from('personal_transactions').insert(payload).select().single();
+                    if (!error && data) {
+                        existingKeys.add(key);
+                        console.log('✅ 로컬 수입/지출 데이터 Supabase 클라우드 이관 성공:', payload);
+                    }
+                }
+            }
+        } catch(e) {
+            console.warn('⚠️ 자동 동기화 시도 중 (Supabase 세팅 대기):', e.message);
+        }
+    },
+
     // ─── 개인 가계부: 카테고리 ───
 
     async getCategories(type = null) {
         let dbList = [];
         try {
             let q = supabase.from('personal_categories').select('*').eq('is_active', true).order('sort_order');
-            if (type && type.trim() !== '') q = q.eq('type', type.trim());
+            if (type && type.trim() !== '') q = q.eq('type', type.trim().toLowerCase());
             const { data, error } = await q;
             if (!error && data) dbList = data;
         } catch(e) {}
@@ -138,9 +177,12 @@ const Store = {
         return true;
     },
 
-    // ─── 개인 가계부: 거래 (전수 스캔 100% 복구 엔진 포함) ───
+    // ─── 개인 가계부: 거래 ───
 
     async getTransactions(filters = {}) {
+        // 배경에서 로컬 ➔ 클라우드 이관 시도
+        this._syncLocalToCloud();
+
         const cats = await this.getCategories();
         const catMap = {};
         cats.forEach(c => catMap[String(c.id)] = c);
@@ -158,10 +200,9 @@ const Store = {
             if (!error && data) dbTx = data;
         } catch(e) {}
 
-        // 브라우저 내 모든 LocalStorage 키 전수 스캔 발굴
-        const allScanned = this._scanAndRestoreAllTransactions();
+        // 로컬 탐색 데이터
+        const allScanned = this._scanAllLocalTransactions();
 
-        // 필터링 적용
         let filteredLocal = allScanned;
         if (filters.startDate) {
             const startClean = Utils.formatDate(filters.startDate);
@@ -182,11 +223,11 @@ const Store = {
             filteredLocal = filteredLocal.filter(t => String(t.payment_method || 'transfer').trim() === filters.payment_method.trim());
         }
 
-        // DB와 발굴된 로컬 데이터 100% 통합 및 중복 제거
+        // DB와 로컬 100% 통합
         const txMap = {};
         filteredLocal.forEach(t => {
-            const idKey = t.id ? String(t.id) : ('legacy_' + (t.tx_date || '') + '_' + (t.amount || '') + '_' + (t.type || ''));
-            const cObj = t.personal_categories || catMap[String(t.category_id)] || { name: '기타', icon: '💰' };
+            const idKey = t.id ? String(t.id) : ('local_' + Utils.formatDate(t.tx_date) + '_' + Utils.parseAmount(t.amount) + '_' + (t.type || ''));
+            const cObj = t.personal_categories || catMap[String(t.category_id)] || (String(t.type).trim().toLowerCase() === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
             txMap[idKey] = {
                 ...t,
                 id: idKey,
@@ -200,7 +241,7 @@ const Store = {
 
         dbTx.forEach(t => {
             if (t.id) {
-                const cObj = t.personal_categories || catMap[String(t.category_id)] || { name: '기타', icon: '💰' };
+                const cObj = t.personal_categories || catMap[String(t.category_id)] || (String(t.type).trim().toLowerCase() === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
                 txMap[String(t.id)] = {
                     ...t,
                     tx_date: Utils.formatDate(t.tx_date),
@@ -215,7 +256,6 @@ const Store = {
         let result = Object.values(txMap);
         result.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
-        // 최신 키로 마이그레이션 백업
         if (result.length > 0) {
             this._setLocal('transactions', result);
         }
@@ -240,7 +280,7 @@ const Store = {
         } catch(e) {}
 
         const cats = await this.getCategories();
-        const cat = cats.find(c => String(c.id) === String(cleanTx.category_id)) || { name: '기타', icon: '💰' };
+        const cat = cats.find(c => String(c.id) === String(cleanTx.category_id)) || (cleanTx.type === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
 
         const newTx = inserted ? {
             ...inserted,
