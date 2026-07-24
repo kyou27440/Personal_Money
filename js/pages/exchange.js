@@ -129,6 +129,7 @@ const ExchangePage = {
 
         calcInput.addEventListener('input', calculate);
         calcRate.addEventListener('input', calculate);
+        Utils.bindAmountInputFormatter(calcInput);
 
         document.getElementById('btn-fetch-calc-rate')?.addEventListener('click', async () => {
             Utils.toast('Naver 실시간 매매기준 환율 조회 중...', 'info');
@@ -160,7 +161,7 @@ const ExchangePage = {
             });
 
             if (totalAmount > 0) {
-                calcInput.value = totalAmount;
+                calcInput.value = totalAmount.toLocaleString('ko-KR');
                 calculate();
                 Utils.toast(`${selectedDate} 가계부 거래 합계 (${Utils.formatVND(totalAmount)})를 불러왔습니다`, 'success');
             } else {
@@ -219,7 +220,7 @@ const ExchangePage = {
                     </div>
                     <input type="number" id="ex-rate" value="${defaultRate}" step="0.01">
                 </div>
-                <div class="form-group"><label>VND 금액</label><input type="text" id="ex-vnd" placeholder="예: 5000000" inputmode="numeric"></div>
+                <div class="form-group"><label>VND 금액</label><input type="text" id="ex-vnd" placeholder="예: 5,000,000" inputmode="numeric"></div>
                 <div class="form-group"><label>KRW 금액</label><input type="text" id="ex-krw" placeholder="자동 계산" inputmode="numeric"></div>
             </div>
             <div class="form-group mt-md"><label>비고</label><input type="text" id="ex-memo" placeholder="메모 (선택)"></div>
@@ -230,6 +231,9 @@ const ExchangePage = {
         const krwInput = document.getElementById('ex-krw');
         const rateInput = document.getElementById('ex-rate');
 
+        Utils.bindAmountInputFormatter(vndInput);
+        Utils.bindAmountInputFormatter(krwInput);
+
         document.getElementById('btn-fetch-modal-rate')?.addEventListener('click', async () => {
             Utils.toast('실시간 매매기준 환율 조회 중...', 'info');
             const liveRate = await Utils.fetchLiveExchangeRate();
@@ -237,8 +241,8 @@ const ExchangePage = {
                 rateInput.value = liveRate;
                 const vnd = Utils.parseAmount(vndInput.value);
                 const krw = Utils.parseAmount(krwInput.value);
-                if (vnd > 0) krwInput.value = Math.round(vnd / liveRate);
-                else if (krw > 0) vndInput.value = Math.round(krw * liveRate);
+                if (vnd > 0) krwInput.value = (Math.round(vnd / liveRate)).toLocaleString('ko-KR');
+                else if (krw > 0) vndInput.value = (Math.round(krw * liveRate)).toLocaleString('ko-KR');
                 Utils.toast(`실시간 매매기준 환율 (1 KRW = ${liveRate} VND) 적용 완료`, 'success');
             } else {
                 Utils.toast('실시간 환율을 불러오는데 실패했습니다', 'error');
@@ -248,12 +252,12 @@ const ExchangePage = {
         vndInput.addEventListener('input', () => {
             const vnd = Utils.parseAmount(vndInput.value);
             const rate = parseFloat(rateInput.value) || 18.5;
-            if (vnd > 0) krwInput.value = Math.round(vnd / rate);
+            if (vnd > 0) krwInput.value = (Math.round(vnd / rate)).toLocaleString('ko-KR');
         });
         krwInput.addEventListener('input', () => {
             const krw = Utils.parseAmount(krwInput.value);
             const rate = parseFloat(rateInput.value) || 18.5;
-            if (krw > 0) vndInput.value = Math.round(krw * rate);
+            if (krw > 0) vndInput.value = (Math.round(krw * rate)).toLocaleString('ko-KR');
         });
 
         document.getElementById('btn-save-ex').addEventListener('click', async () => {
