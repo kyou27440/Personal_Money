@@ -24,13 +24,26 @@ const Utils = {
         return num.toLocaleString();
     },
 
-    /** 입력값에서 완벽하게 숫자만 추출 (문자열, 쉼표, 베트남동 기호 등 완벽 방어) */
+    /** 입력값에서 완벽하게 숫자만 추출 (베트남동 2.724.000, 20.000.000 천단위 점/쉼표 표기 완벽 방어) */
     parseAmount(str) {
-        if (typeof str === 'number') return isNaN(str) ? 0 : str;
+        if (typeof str === 'number') return isNaN(str) ? 0 : Math.round(str);
         if (!str) return 0;
-        const cleaned = String(str).replace(/[^0-9.-]/g, '');
+        let s = String(str).trim();
+        if (!s) return 0;
+
+        // 점(.) 처리: 여러 개의 점이 있거나(2.724.000), 2.724 / 50.000 처럼 천단위 구분기호인 경우 점 제거
+        if (s.includes('.')) {
+            const parts = s.split('.');
+            if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+                s = s.replace(/\./g, '');
+            }
+        }
+        // 쉼표(,) 제거
+        s = s.replace(/,/g, '');
+
+        const cleaned = s.replace(/[^0-9.-]/g, '');
         const parsed = parseFloat(cleaned);
-        return isNaN(parsed) ? 0 : parsed;
+        return isNaN(parsed) ? 0 : Math.round(parsed);
     },
 
     /** 날짜 포맷: YYYY-MM-DD (로컬 시간 기준 정제) */
