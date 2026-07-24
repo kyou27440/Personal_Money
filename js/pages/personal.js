@@ -61,9 +61,9 @@ const PersonalPage = {
     },
 
     async afterRender() {
-        document.getElementById('btn-add-tx').addEventListener('click', () => this.openTxModal());
-        document.getElementById('btn-manage-cat').addEventListener('click', () => this.openCategoryModal());
-        document.getElementById('btn-filter-tx').addEventListener('click', () => this.loadTransactions());
+        document.getElementById('btn-add-tx')?.addEventListener('click', () => this.openTxModal());
+        document.getElementById('btn-manage-cat')?.addEventListener('click', () => this.openCategoryModal());
+        document.getElementById('btn-filter-tx')?.addEventListener('click', () => this.loadTransactions());
         await this.loadTransactions();
     },
 
@@ -83,11 +83,12 @@ const PersonalPage = {
         const endDate = document.getElementById('filter-end')?.value || Utils.today();
         const type = document.getElementById('filter-type')?.value;
         const method = document.getElementById('filter-method')?.value;
+
         const txList = await Store.getTransactions({
             startDate,
             endDate,
-            type: type || undefined,
-            payment_method: method || undefined
+            type: type && type.trim() !== '' ? type.trim() : undefined,
+            payment_method: method && method.trim() !== '' ? method.trim() : undefined
         });
         const tbody = document.getElementById('tx-table-body');
         if (!tbody) return;
@@ -98,19 +99,24 @@ const PersonalPage = {
         }
 
         tbody.innerHTML = txList.map(tx => {
+            const isIncome = String(tx.type).trim().toLowerCase() === 'income';
             const methodLabel = tx.payment_method === 'cash' ? '💵 현금' : '💳 계좌이체';
             const methodClass = tx.payment_method === 'cash' ? 'badge-amber' : 'badge-indigo';
+            const typeBadge = isIncome ? '<span class="badge badge-income">수입</span>' : '<span class="badge badge-expense">지출</span>';
+            const colorClass = isIncome ? 'text-emerald' : 'text-rose';
+            const sign = isIncome ? '+' : '-';
+
             return `
             <tr>
                 <td>${Utils.formatDateKR(tx.tx_date)}</td>
-                <td><span class="badge badge-${tx.type}">${tx.type === 'income' ? '수입' : '지출'}</span></td>
+                <td>${typeBadge}</td>
                 <td><span class="badge ${methodClass}" style="font-size:0.75rem;padding:2px 8px">${methodLabel}</span></td>
-                <td>${tx.personal_categories?.icon || ''} ${Utils.escapeHtml(tx.personal_categories?.name || '')}</td>
-                <td style="text-align:right;font-weight:600" class="${tx.type === 'income' ? 'text-emerald' : 'text-rose'}">${tx.type === 'income' ? '+' : '-'}${Utils.formatVND(tx.amount)}</td>
+                <td>${tx.personal_categories?.icon || '💰'} ${Utils.escapeHtml(tx.personal_categories?.name || '기타')}</td>
+                <td style="text-align:right;font-weight:600" class="${colorClass}">${sign}${Utils.formatVND(tx.amount)}</td>
                 <td class="text-secondary">${Utils.escapeHtml(tx.memo)}</td>
                 <td>
-                    <button class="btn btn-icon btn-sm" onclick="PersonalPage.editTx(${tx.id})" title="수정">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteTx(${tx.id})" title="삭제">🗑️</button>
+                    <button class="btn btn-icon btn-sm" onclick="PersonalPage.editTx('${tx.id}')" title="수정">✏️</button>
+                    <button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteTx('${tx.id}')" title="삭제">🗑️</button>
                 </td>
             </tr>
             `;
@@ -120,10 +126,6 @@ const PersonalPage = {
     async openTxModal(editTx = null) {
         const cats = await Store.getCategories();
         const isEdit = !!editTx;
-
-        const catOptions = cats.map(c =>
-            `<option value="${c.id}" ${editTx?.category_id == c.id ? 'selected' : ''}>${c.icon} ${c.name} (${c.type === 'income' ? '수입' : '지출'})</option>`
-        ).join('');
 
         Modal.open(isEdit ? '거래 수정' : '수입/지출 입력', `
             <div class="form-grid">
@@ -147,7 +149,7 @@ const PersonalPage = {
                 </div>
                 <div class="form-group">
                     <label>카테고리</label>
-                    <select id="tx-category">${catOptions}</select>
+                    <select id="tx-category"></select>
                 </div>
                 <div class="form-group full-width">
                     <label>금액 (VND)</label>
@@ -163,46 +165,56 @@ const PersonalPage = {
             <button class="btn btn-primary" id="btn-save-tx">${isEdit ? '수정' : '저장'}</button>
         `);
 
-        // Filter categories by selected type
         const typeSelect = document.getElementById('tx-type');
         const catSelect = document.getElementById('tx-category');
+
         const filterCats = () => {
-            const selType = typeSelect.value;
-            const filtered = cats.filter(c => c.type === selType);
-            catSelect.innerHTML = filtered.map(c =>
-                `<option value="${c.id}">${c.icon} ${c.name}</option>`
-            ).join('');
-            if (editTx && editTx.category_id) catSelect.value = editTx.category_id;
+            const selType = String(typeSelect.value).trim().toLowerCase();
+            const filtered = cats.filter(c => String(c.type).trim().toLowerCase() === selType);
+            if (filtered.length > 0) {
+                catSelect.innerHTML = filtered.map(c =>
+                    `<option value="${c.id}">${c.icon || '📌'} ${c.name}</option>`
+                ).join('');
+            } else {
+                catSelect.innerHTML = `<option value="1">💰 기타</option>`;
+            }
+            if (editTx && editTx.category_id) catSelect.value = String(editTx.category_id);
         };
+
         typeSelect.addEventListener('change', filterCats);
         filterCats();
 
-        document.getElementById('btn-save-tx').addEventListener('click', async () => {
-            const txDate = document.getElementById('tx-date').value;
+        document.getElementById('btn-save-tx')?.addEventListener('click', async () => {
+            const txDate = Utils.formatDate(document.getElementById('tx-date').value);
             const amount = Utils.parseAmount(document.getElementById('tx-amount').value);
+            const selectedCatId = document.getElementById('tx-category').value;
+
             const data = {
                 tx_date: txDate,
-                type: document.getElementById('tx-type').value,
+                type: String(document.getElementById('tx-type').value).trim().toLowerCase(),
                 payment_method: document.getElementById('tx-method').value,
-                category_id: Number(document.getElementById('tx-category').value),
+                category_id: selectedCatId ? (isNaN(Number(selectedCatId)) ? selectedCatId : Number(selectedCatId)) : 1,
                 amount: amount,
                 memo: document.getElementById('tx-memo').value.trim()
             };
+
             if (!data.tx_date || !data.amount || data.amount <= 0) {
-                Utils.toast('날짜와 금액(0 이상)을 입력해주세요', 'error');
+                Utils.toast('날짜와 올바른 금액(0 이상)을 입력해주세요', 'error');
                 return;
             }
+
             let result;
             if (isEdit) {
                 result = await Store.updateTransaction(editTx.id, data);
             } else {
                 result = await Store.addTransaction(data);
             }
+
             if (result) {
                 Utils.toast(isEdit ? '거래가 수정되었습니다' : '거래가 저장되었습니다', 'success');
                 Modal.close();
 
-                // 날짜 필터가 입력된 날짜를 포함하도록 자동 보정
+                // 날짜 필터가 입력된 날짜를 포함하도록 자동 확대
                 const filterEnd = document.getElementById('filter-end');
                 const filterStart = document.getElementById('filter-start');
                 if (filterEnd && filterEnd.value < txDate) filterEnd.value = txDate;
@@ -218,7 +230,7 @@ const PersonalPage = {
 
     async editTx(id) {
         const txList = await Store.getTransactions({});
-        const tx = txList.find(t => t.id === id);
+        const tx = txList.find(t => String(t.id) === String(id));
         if (tx) this.openTxModal(tx);
     },
 
@@ -238,10 +250,10 @@ const PersonalPage = {
         const cats = await Store.getCategories();
         const rows = cats.map(c => `
             <tr>
-                <td>${c.icon}</td>
+                <td>${c.icon || '📌'}</td>
                 <td>${Utils.escapeHtml(c.name)}</td>
                 <td><span class="badge badge-${c.type}">${c.type === 'income' ? '수입' : '지출'}</span></td>
-                <td><button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteCategory(${c.id})">🗑️</button></td>
+                <td><button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteCategory('${c.id}')">🗑️</button></td>
             </tr>
         `).join('');
 
@@ -271,7 +283,7 @@ const PersonalPage = {
             </div>
         `);
 
-        document.getElementById('btn-add-cat').addEventListener('click', async () => {
+        document.getElementById('btn-add-cat')?.addEventListener('click', async () => {
             const name = document.getElementById('cat-name').value.trim();
             const type = document.getElementById('cat-type').value;
             const icon = document.getElementById('cat-icon').value || '📌';

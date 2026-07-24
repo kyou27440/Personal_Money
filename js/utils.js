@@ -1,42 +1,58 @@
 /* ============================================
-   UTILS.JS — 유틸리티 함수 모음
+   UTILS.JS — 유틸리티 함수 모음 (방어적 데이터 파싱 전면 보강)
    ============================================ */
 
 const Utils = {
     /** VND 금액 포맷: 1,234,567 ₫ */
     formatVND(amount) {
-        if (amount == null || isNaN(amount)) return '0 ₫';
-        return Number(amount).toLocaleString('vi-VN') + ' ₫';
+        const num = Number(amount);
+        if (amount == null || isNaN(num)) return '0 ₫';
+        return num.toLocaleString('vi-VN') + ' ₫';
     },
 
     /** KRW 금액 포맷: ₩1,234,567 */
     formatKRW(amount) {
-        if (amount == null || isNaN(amount)) return '₩0';
-        return '₩' + Number(amount).toLocaleString('ko-KR');
+        const num = Number(amount);
+        if (amount == null || isNaN(num)) return '₩0';
+        return '₩' + num.toLocaleString('ko-KR');
     },
 
     /** 숫자 포맷 (통화 기호 없음) */
     formatNumber(n) {
-        if (n == null || isNaN(n)) return '0';
-        return Number(n).toLocaleString();
+        const num = Number(n);
+        if (n == null || isNaN(num)) return '0';
+        return num.toLocaleString();
     },
 
-    /** 날짜 포맷: YYYY-MM-DD (로컬 시간 기준) */
+    /** 입력값에서 완벽하게 숫자만 추출 (문자열, 쉼표, 베트남동 기호 등 완벽 방어) */
+    parseAmount(str) {
+        if (typeof str === 'number') return isNaN(str) ? 0 : str;
+        if (!str) return 0;
+        const cleaned = String(str).replace(/[^0-9.-]/g, '');
+        const parsed = parseFloat(cleaned);
+        return isNaN(parsed) ? 0 : parsed;
+    },
+
+    /** 날짜 포맷: YYYY-MM-DD (로컬 시간 기준 정제) */
     formatDate(dateStr) {
-        if (!dateStr) return '';
-        const clean = String(dateStr).split('T')[0];
+        if (!dateStr) return Utils.today();
+        const str = String(dateStr).trim();
+        const clean = str.includes('T') ? str.split('T')[0] : str.split(' ')[0];
         const parts = clean.split('-');
         if (parts.length === 3) {
-            return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            const yyyy = parts[0];
+            const mm = parts[1].padStart(2, '0');
+            const dd = parts[2].padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
         }
-        return dateStr;
+        return str;
     },
 
-    /** 날짜 한국식 표시: 07월 21일 (월) */
+    /** 날짜 한국식 표시: 07월 24일 (금) */
     formatDateKR(dateStr) {
         if (!dateStr) return '';
-        const clean = String(dateStr).split('T')[0];
-        const parts = clean.split('-').map(Number);
+        const formatted = Utils.formatDate(dateStr);
+        const parts = formatted.split('-').map(Number);
         if (parts.length < 3 || isNaN(parts[0])) return dateStr;
         const d = new Date(parts[0], parts[1] - 1, parts[2]);
         const days = ['일', '월', '화', '수', '목', '금', '토'];
@@ -54,13 +70,15 @@ const Utils = {
         return `${yyyy}-${mm}-${dd}`;
     },
 
-    /** 이번 달 시작일 */
+    /** 이번 달 시작일 YYYY-MM-01 */
     monthStart() {
         const now = new Date();
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        return `${yyyy}-${mm}-01`;
     },
 
-    /** 이번 달 종료일 */
+    /** 이번 달 종료일 YYYY-MM-DD */
     monthEnd() {
         const now = new Date();
         const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -104,12 +122,6 @@ const Utils = {
         return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     },
 
-    /** 입력값에서 숫자만 추출 (쉼표 제거) */
-    parseAmount(str) {
-        if (typeof str === 'number') return str;
-        return Number(String(str).replace(/[^0-9.-]/g, '')) || 0;
-    },
-
     /** 경과 시간 표시 */
     timeAgo(dateStr) {
         const now = new Date();
@@ -122,7 +134,7 @@ const Utils = {
         return Utils.formatDate(dateStr);
     },
 
-    /** Chart.js 기본 옵션 (다크 테마) */
+    /** Chart.js 기본 옵션 */
     chartDefaults() {
         return {
             responsive: true,
