@@ -199,7 +199,7 @@ const PersonalPage = {
                 </div>
                 <div class="form-group full-width">
                     <label>금액 (VND)</label>
-                    <input type="text" id="tx-amount" placeholder="예: 250000" value="${editTx ? editTx.amount : ''}" inputmode="numeric">
+                    <input type="text" id="tx-amount" placeholder="예: 250,000" value="${editTx && editTx.amount ? editTx.amount.toLocaleString('ko-KR') : ''}" inputmode="numeric">
                 </div>
             </div>
             <div class="form-group mt-md">
@@ -210,6 +210,9 @@ const PersonalPage = {
             <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
             <button class="btn btn-primary" id="btn-save-tx">${isEdit ? '수정' : '저장'}</button>
         `);
+
+        const amountInput = document.getElementById('tx-amount');
+        Utils.bindAmountInputFormatter(amountInput);
 
         const typeSelect = document.getElementById('tx-type');
         const catSelect = document.getElementById('tx-category');
