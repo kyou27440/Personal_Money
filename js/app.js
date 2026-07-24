@@ -78,10 +78,6 @@
                 case 'personal':
                     PersonalPage.openTxModal();
                     break;
-                case 'club':
-                    if (ClubPage.currentTab === 'dues') ClubPage.openDuesModal();
-                    else ClubPage.openGameModal();
-                    break;
                 case 'exchange':
                     ExchangePage.openExchangeModal();
                     break;

@@ -1,246 +1,269 @@
 /* ============================================
-   STORE.JS — Supabase 데이터 접근 레이어 (DAL)
-   모든 DB CRUD를 이 파일에서 관리
+   STORE.JS — Supabase 클라우드 (1순위) + LocalStorage (백업) DAL
+   타 PC & 모바일에서 실시간 클라우드 데이터 동기화 지원
    ============================================ */
 if (typeof supabase === 'undefined' || typeof supabase.from !== 'function') {
     var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY || SUPABASE_ANON_KEY);
 }
 
+const DEFAULT_CATEGORIES = [
+    { id: 1, name: '식비', type: 'expense', icon: '🍚', sort_order: 1, is_active: true },
+    { id: 2, name: '교통비', type: 'expense', icon: '🚗', sort_order: 2, is_active: true },
+    { id: 3, name: '쇼핑', type: 'expense', icon: '🛍️', sort_order: 3, is_active: true },
+    { id: 4, name: '주거/통신', type: 'expense', icon: '🏠', sort_order: 4, is_active: true },
+    { id: 5, name: '취미/유흥', type: 'expense', icon: '🎮', sort_order: 5, is_active: true },
+    { id: 6, name: '기타 지출', type: 'expense', icon: '💸', sort_order: 6, is_active: true },
+    { id: 7, name: '급여/월급', type: 'income', icon: '💵', sort_order: 1, is_active: true },
+    { id: 8, name: '부수입', type: 'income', icon: '💰', sort_order: 2, is_active: true },
+    { id: 9, name: '기타 수입', type: 'income', icon: '🎁', sort_order: 3, is_active: true }
+];
+
 const Store = {
+
+    // ─── LocalStorage Helpers ───
+    _getLocal(key, defaultVal = []) {
+        try {
+            const val = localStorage.getItem('mymoney_' + key);
+            return val ? JSON.parse(val) : defaultVal;
+        } catch(e) { return defaultVal; }
+    },
+    _setLocal(key, val) {
+        try { localStorage.setItem('mymoney_' + key, JSON.stringify(val)); } catch(e) {}
+    },
 
     // ─── 개인 가계부: 카테고리 ───
 
     async getCategories(type = null) {
-        let q = supabase.from('personal_categories').select('*').eq('is_active', true).order('sort_order');
-        if (type) q = q.eq('type', type);
-        const { data, error } = await q;
-        if (error) { console.error('getCategories:', error); return []; }
-        return data;
+        try {
+            let q = supabase.from('personal_categories').select('*').eq('is_active', true).order('sort_order');
+            if (type) q = q.eq('type', type);
+            const { data, error } = await q;
+            if (!error && data && data.length > 0) {
+                this._setLocal('categories', data);
+                return data;
+            }
+        } catch(e) {}
+
+        let list = this._getLocal('categories', DEFAULT_CATEGORIES).filter(c => c.is_active);
+        if (type) list = list.filter(c => c.type === type);
+        return list.length > 0 ? list : DEFAULT_CATEGORIES;
     },
 
     async addCategory(cat) {
-        const { data, error } = await supabase.from('personal_categories').insert(cat).select().single();
-        if (error) { console.error('addCategory:', error); return null; }
-        return data;
+        let inserted = null;
+        try {
+            const { data, error } = await supabase.from('personal_categories').insert(cat).select().single();
+            if (!error && data) inserted = data;
+        } catch(e) {}
+
+        const newCat = inserted || { ...cat, id: Date.now(), is_active: true };
+        const list = this._getLocal('categories', DEFAULT_CATEGORIES);
+        list.push(newCat);
+        this._setLocal('categories', list);
+        return newCat;
     },
 
     async updateCategory(id, updates) {
-        updates.updated_at = new Date().toISOString();
-        const { data, error } = await supabase.from('personal_categories').update(updates).eq('id', id).select().single();
-        if (error) { console.error('updateCategory:', error); return null; }
-        return data;
+        try {
+            updates.updated_at = new Date().toISOString();
+            await supabase.from('personal_categories').update(updates).eq('id', id);
+        } catch(e) {}
+
+        const list = this._getLocal('categories', DEFAULT_CATEGORIES);
+        const idx = list.findIndex(c => c.id == id);
+        if (idx !== -1) {
+            list[idx] = { ...list[idx], ...updates };
+            this._setLocal('categories', list);
+            return list[idx];
+        }
+        return null;
     },
 
     async deleteCategory(id) {
-        const { error } = await supabase.from('personal_categories').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', id);
-        if (error) { console.error('deleteCategory:', error); return false; }
+        try {
+            await supabase.from('personal_categories').update({ is_active: false }).eq('id', id);
+        } catch(e) {}
+
+        const list = this._getLocal('categories', DEFAULT_CATEGORIES);
+        const idx = list.findIndex(c => c.id == id);
+        if (idx !== -1) {
+            list[idx].is_active = false;
+            this._setLocal('categories', list);
+        }
         return true;
     },
 
-    // ─── 개인 가계부: 거래 ───
+    // ─── 개인 가계부: 거래 (클라우드 우선 동기화) ───
 
     async getTransactions(filters = {}) {
-        let q = supabase.from('personal_transactions').select('*, personal_categories(name, icon)').order('tx_date', { ascending: false }).order('created_at', { ascending: false });
-        if (filters.startDate) q = q.gte('tx_date', filters.startDate);
-        if (filters.endDate) q = q.lte('tx_date', filters.endDate);
-        if (filters.type) q = q.eq('type', filters.type);
-        if (filters.category_id) q = q.eq('category_id', filters.category_id);
-        if (filters.limit) q = q.limit(filters.limit);
-        const { data, error } = await q;
-        if (error) { console.error('getTransactions:', error); return []; }
-        return data;
+        const cats = await this.getCategories();
+        const catMap = {};
+        cats.forEach(c => catMap[c.id] = c);
+
+        try {
+            let q = supabase.from('personal_transactions').select('*, personal_categories(name, icon)').order('tx_date', { ascending: false }).order('created_at', { ascending: false });
+            if (filters.startDate) q = q.gte('tx_date', filters.startDate);
+            if (filters.endDate) q = q.lte('tx_date', filters.endDate);
+            if (filters.type) q = q.eq('type', filters.type);
+            if (filters.category_id) q = q.eq('category_id', filters.category_id);
+            if (filters.payment_method) q = q.eq('payment_method', filters.payment_method);
+            if (filters.limit) q = q.limit(filters.limit);
+            const { data, error } = await q;
+
+            if (!error && data) {
+                // DB 데이터 우선 사용 & LocalStorage와 동기화
+                this._setLocal('transactions', data);
+                return data.map(t => ({
+                    ...t,
+                    personal_categories: t.personal_categories || catMap[t.category_id] || { name: '기타', icon: '💰' }
+                }));
+            }
+        } catch(e) {}
+
+        // Supabase 연결 안될 때 LocalStorage 폴백
+        let localTx = this._getLocal('transactions', []);
+        if (filters.startDate) localTx = localTx.filter(t => t.tx_date >= filters.startDate);
+        if (filters.endDate) localTx = localTx.filter(t => t.tx_date <= filters.endDate);
+        if (filters.type) localTx = localTx.filter(t => t.type === filters.type);
+        if (filters.category_id) localTx = localTx.filter(t => t.category_id == filters.category_id);
+        if (filters.payment_method) localTx = localTx.filter(t => t.payment_method === filters.payment_method);
+
+        localTx.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date));
+        if (filters.limit) localTx = localTx.slice(0, filters.limit);
+
+        return localTx.map(t => ({
+            ...t,
+            personal_categories: t.personal_categories || catMap[t.category_id] || { name: '기타', icon: '💰' }
+        }));
     },
 
     async addTransaction(tx) {
-        const { data, error } = await supabase.from('personal_transactions').insert(tx).select('*, personal_categories(name, icon)').single();
-        if (error) { console.error('addTransaction:', error); return null; }
-        return data;
+        let inserted = null;
+        try {
+            const { data, error } = await supabase.from('personal_transactions').insert(tx).select('*, personal_categories(name, icon)').single();
+            if (!error && data) inserted = data;
+        } catch(e) {}
+
+        const cats = await this.getCategories();
+        const cat = cats.find(c => c.id == tx.category_id) || { name: '기타', icon: '💰' };
+
+        const newTx = inserted || {
+            ...tx,
+            id: 'tx_' + Date.now(),
+            created_at: new Date().toISOString(),
+            personal_categories: cat
+        };
+
+        const list = this._getLocal('transactions', []);
+        list.unshift(newTx);
+        this._setLocal('transactions', list);
+
+        return newTx;
     },
 
     async updateTransaction(id, updates) {
-        updates.updated_at = new Date().toISOString();
-        const { data, error } = await supabase.from('personal_transactions').update(updates).eq('id', id).select('*, personal_categories(name, icon)').single();
-        if (error) { console.error('updateTransaction:', error); return null; }
-        return data;
+        try {
+            updates.updated_at = new Date().toISOString();
+            await supabase.from('personal_transactions').update(updates).eq('id', id);
+        } catch(e) {}
+
+        const list = this._getLocal('transactions', []);
+        const idx = list.findIndex(t => t.id == id);
+        if (idx !== -1) {
+            list[idx] = { ...list[idx], ...updates };
+            this._setLocal('transactions', list);
+            return list[idx];
+        }
+        return null;
     },
 
     async deleteTransaction(id) {
-        const { error } = await supabase.from('personal_transactions').delete().eq('id', id);
-        if (error) { console.error('deleteTransaction:', error); return false; }
+        try {
+            await supabase.from('personal_transactions').delete().eq('id', id);
+        } catch(e) {}
+
+        let list = this._getLocal('transactions', []);
+        list = list.filter(t => t.id != id);
+        this._setLocal('transactions', list);
         return true;
     },
 
     async getTransactionSummary(startDate, endDate) {
-        const { data, error } = await supabase.from('personal_transactions').select('type, amount').gte('tx_date', startDate).lte('tx_date', endDate);
-        if (error) { console.error('getTransactionSummary:', error); return { income: 0, expense: 0, balance: 0 }; }
+        const txList = await this.getTransactions({ startDate, endDate });
         let income = 0, expense = 0;
-        (data || []).forEach(t => { if (t.type === 'income') income += Number(t.amount); else expense += Number(t.amount); });
+        txList.forEach(t => {
+            const amt = Number(t.amount) || 0;
+            if (t.type === 'income') income += amt;
+            else expense += amt;
+        });
         return { income, expense, balance: income - expense };
     },
 
     async getTotalBalance() {
-        const { data, error } = await supabase.from('personal_transactions').select('type, amount');
-        if (error) { console.error('getTotalBalance:', error); return 0; }
+        const txList = await this.getTransactions({});
         let balance = 0;
-        (data || []).forEach(t => { balance += t.type === 'income' ? Number(t.amount) : -Number(t.amount); });
+        txList.forEach(t => {
+            const amt = Number(t.amount) || 0;
+            balance += t.type === 'income' ? amt : -amt;
+        });
         return balance;
     },
 
-    // ─── 모임: 멤버 ───
-
-    async getMembers(statusFilter = null) {
-        let q = supabase.from('club_members').select('*').order('name');
-        if (statusFilter) q = q.eq('status', statusFilter);
-        const { data, error } = await q;
-        if (error) { console.error('getMembers:', error); return []; }
-        return data;
-    },
-
-    async addMember(member) {
-        const { data, error } = await supabase.from('club_members').insert(member).select().single();
-        if (error) { console.error('addMember:', error); return null; }
-        return data;
-    },
-
-    async updateMember(id, updates) {
-        updates.updated_at = new Date().toISOString();
-        const { data, error } = await supabase.from('club_members').update(updates).eq('id', id).select().single();
-        if (error) { console.error('updateMember:', error); return null; }
-        return data;
-    },
-
-    // ─── 모임: 게임 ───
-
-    async getGames(filters = {}) {
-        let q = supabase.from('club_games').select('*, club_game_participants(*, club_members(name))').order('game_date', { ascending: false });
-        if (filters.startDate) q = q.gte('game_date', filters.startDate);
-        if (filters.endDate) q = q.lte('game_date', filters.endDate);
-        if (filters.limit) q = q.limit(filters.limit);
-        const { data, error } = await q;
-        if (error) { console.error('getGames:', error); return []; }
-        return data;
-    },
-
-    async addGame(game, participants) {
-        const { data: g, error: ge } = await supabase.from('club_games').insert(game).select().single();
-        if (ge) { console.error('addGame:', ge); return null; }
-        if (participants && participants.length > 0) {
-            const parts = participants.map(p => ({ ...p, game_id: g.id }));
-            const { error: pe } = await supabase.from('club_game_participants').insert(parts);
-            if (pe) console.error('addGameParticipants:', pe);
-        }
-        return g;
-    },
-
-    async deleteGame(id) {
-        const { error } = await supabase.from('club_games').delete().eq('id', id);
-        if (error) { console.error('deleteGame:', error); return false; }
-        return true;
-    },
-
-    // ─── 모임: 회비 ───
-
-    async getDues(filters = {}) {
-        let q = supabase.from('club_dues').select('*, club_members(name)').order('dues_date', { ascending: false });
-        if (filters.member_id) q = q.eq('member_id', filters.member_id);
-        if (filters.startDate) q = q.gte('dues_date', filters.startDate);
-        if (filters.endDate) q = q.lte('dues_date', filters.endDate);
-        const { data, error } = await q;
-        if (error) { console.error('getDues:', error); return []; }
-        return data;
-    },
-
-    async addDues(dues) {
-        const { data, error } = await supabase.from('club_dues').insert(dues).select('*, club_members(name)').single();
-        if (error) { console.error('addDues:', error); return null; }
-        return data;
-    },
-
-    async deleteDues(id) {
-        const { error } = await supabase.from('club_dues').delete().eq('id', id);
-        if (error) { console.error('deleteDues:', error); return false; }
-        return true;
-    },
-
-    async getDuesBalance() {
-        const { data, error } = await supabase.from('club_dues').select('member_id, type, amount, club_members(name, status)');
-        if (error) { console.error('getDuesBalance:', error); return []; }
-        const map = {};
-        (data || []).forEach(d => {
-            const mid = d.member_id;
-            if (!map[mid]) map[mid] = { member_id: mid, name: d.club_members?.name || '?', status: d.club_members?.status, balance: 0 };
-            map[mid].balance += d.type === 'deposit' ? Number(d.amount) : -Number(d.amount);
-        });
-        return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
-    },
-
-    async getClubTotalBalance() {
-        const { data, error } = await supabase.from('club_dues').select('type, amount');
-        if (error) return 0;
-        let bal = 0;
-        (data || []).forEach(d => { bal += d.type === 'deposit' ? Number(d.amount) : -Number(d.amount); });
-        return bal;
-    },
-
-    // ─── 모임: 순위 추이 ───
-
-    async getRankingTrend(limit = 10) {
-        const { data, error } = await supabase.from('club_games').select('id, game_date, club_game_participants(member_id, ranking, club_members(name))').order('game_date', { ascending: true }).limit(limit);
-        if (error) { console.error('getRankingTrend:', error); return []; }
-        return data;
-    },
-
-    async getMemberStats() {
-        const { data, error } = await supabase.from('club_game_participants').select('member_id, ranking, club_members(name, status)');
-        if (error) { console.error('getMemberStats:', error); return []; }
-        const map = {};
-        (data || []).forEach(p => {
-            const mid = p.member_id;
-            if (!map[mid]) map[mid] = { name: p.club_members?.name, status: p.club_members?.status, games: 0, totalRank: 0, best: Infinity, worst: 0 };
-            map[mid].games++;
-            if (p.ranking) {
-                map[mid].totalRank += p.ranking;
-                map[mid].best = Math.min(map[mid].best, p.ranking);
-                map[mid].worst = Math.max(map[mid].worst, p.ranking);
-            }
-        });
-        return Object.entries(map).map(([id, s]) => ({
-            member_id: Number(id), name: s.name, status: s.status, games: s.games,
-            avgRank: s.games > 0 ? (s.totalRank / s.games).toFixed(1) : '-',
-            best: s.best === Infinity ? '-' : s.best, worst: s.worst || '-'
-        })).sort((a, b) => (parseFloat(a.avgRank) || 99) - (parseFloat(b.avgRank) || 99));
-    },
-
-    // ─── 환전 ───
+    // ─── 개인 환전 ───
 
     async getExchanges(filters = {}) {
-        let q = supabase.from('exchange_transactions').select('*').order('tx_date', { ascending: false });
-        if (filters.startDate) q = q.gte('tx_date', filters.startDate);
-        if (filters.endDate) q = q.lte('tx_date', filters.endDate);
-        if (filters.person_name) q = q.eq('person_name', filters.person_name);
-        if (filters.limit) q = q.limit(filters.limit);
-        const { data, error } = await q;
-        if (error) { console.error('getExchanges:', error); return []; }
-        return data;
+        try {
+            let q = supabase.from('exchange_transactions').select('*').order('tx_date', { ascending: false });
+            if (filters.startDate) q = q.gte('tx_date', filters.startDate);
+            if (filters.endDate) q = q.lte('tx_date', filters.endDate);
+            if (filters.person_name) q = q.eq('person_name', filters.person_name);
+            if (filters.limit) q = q.limit(filters.limit);
+            const { data, error } = await q;
+            if (!error && data) {
+                this._setLocal('exchanges', data);
+                return data;
+            }
+        } catch(e) {}
+
+        let localEx = this._getLocal('exchanges', []);
+        if (filters.startDate) localEx = localEx.filter(e => e.tx_date >= filters.startDate);
+        if (filters.endDate) localEx = localEx.filter(e => e.tx_date <= filters.endDate);
+        if (filters.person_name) localEx = localEx.filter(e => e.person_name === filters.person_name);
+
+        localEx.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date));
+        if (filters.limit) localEx = localEx.slice(0, filters.limit);
+        return localEx;
     },
 
     async addExchange(ex) {
-        const { data, error } = await supabase.from('exchange_transactions').insert(ex).select().single();
-        if (error) { console.error('addExchange:', error); return null; }
-        return data;
+        let inserted = null;
+        try {
+            const { data, error } = await supabase.from('exchange_transactions').insert(ex).select().single();
+            if (!error && data) inserted = data;
+        } catch(e) {}
+
+        const newEx = inserted || { ...ex, id: 'ex_' + Date.now(), created_at: new Date().toISOString() };
+        const list = this._getLocal('exchanges', []);
+        list.unshift(newEx);
+        this._setLocal('exchanges', list);
+        return newEx;
     },
 
     async deleteExchange(id) {
-        const { error } = await supabase.from('exchange_transactions').delete().eq('id', id);
-        if (error) { console.error('deleteExchange:', error); return false; }
+        try {
+            await supabase.from('exchange_transactions').delete().eq('id', id);
+        } catch(e) {}
+
+        let list = this._getLocal('exchanges', []);
+        list = list.filter(e => e.id != id);
+        this._setLocal('exchanges', list);
         return true;
     },
 
     async getExchangeTotal() {
-        const { data, error } = await supabase.from('exchange_transactions').select('tx_type, amount_vnd, amount_krw');
-        if (error) return { vnd: 0, krw: 0 };
+        const exList = await this.getExchanges({});
         let vnd = 0, krw = 0;
-        (data || []).forEach(e => {
+        exList.forEach(e => {
             if (e.tx_type === 'VND_TO_KRW') { vnd -= Number(e.amount_vnd); krw += Number(e.amount_krw); }
             else { vnd += Number(e.amount_vnd); krw -= Number(e.amount_krw); }
         });
@@ -250,22 +273,30 @@ const Store = {
     // ─── 설정 ───
 
     async getSetting(key) {
-        const { data, error } = await supabase.from('app_settings').select('value').eq('key', key).single();
-        if (error) return null;
-        return data?.value;
+        try {
+            const { data, error } = await supabase.from('app_settings').select('value').eq('key', key).single();
+            if (!error && data) return data.value;
+        } catch(e) {}
+        return this._getLocal('setting_' + key, null);
     },
 
     async setSetting(key, value) {
-        const { error } = await supabase.from('app_settings').upsert({ key, value, updated_at: new Date().toISOString() });
-        if (error) { console.error('setSetting:', error); return false; }
+        try {
+            await supabase.from('app_settings').upsert({ key, value, updated_at: new Date().toISOString() });
+        } catch(e) {}
+        this._setLocal('setting_' + key, value);
         return true;
     },
 
     async getAllSettings() {
-        const { data, error } = await supabase.from('app_settings').select('*');
-        if (error) return {};
-        const map = {};
-        (data || []).forEach(s => { map[s.key] = s.value; });
-        return map;
+        try {
+            const { data, error } = await supabase.from('app_settings').select('*');
+            if (!error && data && data.length > 0) {
+                const map = {};
+                data.forEach(s => { map[s.key] = s.value; });
+                return map;
+            }
+        } catch(e) {}
+        return {};
     }
 };

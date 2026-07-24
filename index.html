@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="description" content="개인 자산 및 회사 모임(총무) 통합 대시보드 - VND 기반 재무 관리">
+    <meta name="description" content="독립 개인 가계부 및 자산 관리 - VND/KRW 기반 개인 재무 관리">
     <!-- Cache Control -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -11,23 +11,22 @@
     <meta name="theme-color" content="#6366f1">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Mony">
+    <meta name="apple-mobile-web-app-title" content="MyMoney">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon.svg">
-    <title>💰 Mony Dashboard - 자산 & 모임 통합 관리</title>
+    <title>💰 MyMoney - 개인 자산 & 가계부 관리</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/index.css?v=4.0_20260722_123500">
-    <link rel="stylesheet" href="css/sidebar.css?v=4.0_20260722_123500">
-    <link rel="stylesheet" href="css/dashboard.css?v=4.0_20260722_123500">
-    <link rel="stylesheet" href="css/personal.css?v=4.0_20260722_123500">
-    <link rel="stylesheet" href="css/club.css?v=4.0_20260722_123500">
-    <link rel="stylesheet" href="css/exchange.css?v=4.0_20260722_123500">
-    <link rel="stylesheet" href="css/analytics.css?v=4.0_20260722_123500">
-    <link rel="stylesheet" href="css/settings.css?v=4.0_20260722_123500">
-    <link rel="stylesheet" href="css/modal.css?v=4.0_20260722_123500">
-    <link rel="stylesheet" href="css/mobile.css?v=4.0_20260722_123500">
+    <link rel="stylesheet" href="css/index.css?v=4.0_20260724_114200">
+    <link rel="stylesheet" href="css/sidebar.css?v=4.0_20260724_114200">
+    <link rel="stylesheet" href="css/dashboard.css?v=4.0_20260724_114200">
+    <link rel="stylesheet" href="css/personal.css?v=4.0_20260724_114200">
+    <link rel="stylesheet" href="css/exchange.css?v=4.0_20260724_114200">
+    <link rel="stylesheet" href="css/analytics.css?v=4.0_20260724_114200">
+    <link rel="stylesheet" href="css/settings.css?v=4.0_20260724_114200">
+    <link rel="stylesheet" href="css/modal.css?v=4.0_20260724_114200">
+    <link rel="stylesheet" href="css/mobile.css?v=4.0_20260724_114200">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
@@ -38,7 +37,7 @@
             <div class="sidebar-header">
                 <div class="logo">
                     <span class="logo-icon">💰</span>
-                    <span class="logo-text">Mony</span>
+                    <span class="logo-text">MyMoney</span>
                 </div>
                 <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
@@ -47,23 +46,19 @@
             <nav class="sidebar-nav">
                 <a href="#" class="nav-item active" data-page="dashboard">
                     <span class="nav-icon">📊</span>
-                    <span class="nav-text">대시보드</span>
+                    <span class="nav-text">개인 대시보드</span>
                 </a>
                 <a href="#" class="nav-item" data-page="personal">
                     <span class="nav-icon">💰</span>
-                    <span class="nav-text">개인 가계부</span>
-                </a>
-                <a href="#" class="nav-item" data-page="club">
-                    <span class="nav-icon">⛳</span>
-                    <span class="nav-text">회사 모임 관리</span>
+                    <span class="nav-text">수입 / 지출 가계부</span>
                 </a>
                 <a href="#" class="nav-item" data-page="exchange">
                     <span class="nav-icon">💱</span>
-                    <span class="nav-text">환전 관리</span>
+                    <span class="nav-text">개인 환전 관리</span>
                 </a>
                 <a href="#" class="nav-item" data-page="analytics">
                     <span class="nav-icon">📈</span>
-                    <span class="nav-text">자산 현황 및 통계</span>
+                    <span class="nav-text">자산 분석 및 통계</span>
                 </a>
                 <a href="#" class="nav-item" data-page="settings">
                     <span class="nav-icon">⚙️</span>
@@ -71,7 +66,7 @@
                 </a>
             </nav>
             <div class="sidebar-footer">
-                <div class="sidebar-version">v4.0.0 • 2026-07-22 12:35:00</div>
+                <div class="sidebar-version">v1.0.2 (개인 전용) • 2026-07-24 11:53</div>
             </div>
         </aside>
 
@@ -111,13 +106,13 @@
                 <span class="bnav-icon">💰</span>
                 <span class="bnav-text">가계부</span>
             </a>
-            <a href="#" class="bottom-nav-item" data-page="club">
-                <span class="bnav-icon">⛳</span>
-                <span class="bnav-text">모임</span>
-            </a>
             <a href="#" class="bottom-nav-item" data-page="exchange">
                 <span class="bnav-icon">💱</span>
                 <span class="bnav-text">환전</span>
+            </a>
+            <a href="#" class="bottom-nav-item" data-page="analytics">
+                <span class="bnav-icon">📈</span>
+                <span class="bnav-text">분석</span>
             </a>
             <a href="#" class="bottom-nav-item" data-page="settings">
                 <span class="bnav-icon">⚙️</span>
@@ -142,18 +137,17 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- JS Modules -->
-    <script src="js/config.js?v=4.0_20260722_123500"></script>
-    <script src="js/store.js?v=4.0_20260722_123500"></script>
-    <script src="js/utils.js?v=4.0_20260722_123500"></script>
-    <script src="js/modal.js?v=4.0_20260722_123500"></script>
-    <script src="js/router.js?v=4.0_20260722_123500"></script>
-    <script src="js/pages/dashboard.js?v=4.0_20260722_123500"></script>
-    <script src="js/pages/personal.js?v=4.0_20260722_123500"></script>
-    <script src="js/pages/club.js?v=4.0_20260722_123500"></script>
-    <script src="js/pages/exchange.js?v=4.0_20260722_123500"></script>
-    <script src="js/pages/analytics.js?v=4.0_20260722_123500"></script>
-    <script src="js/pages/settings.js?v=4.0_20260722_123500"></script>
-    <script src="js/app.js?v=4.0_20260722_123500"></script>
+    <script src="js/config.js?v=5.0_20260724_115300"></script>
+    <script src="js/store.js?v=5.2_20260724_114400"></script>
+    <script src="js/utils.js?v=5.0_20260724_115300"></script>
+    <script src="js/modal.js?v=5.0_20260724_115300"></script>
+    <script src="js/router.js?v=5.0_20260724_115300"></script>
+    <script src="js/pages/dashboard.js?v=5.0_20260724_115300"></script>
+    <script src="js/pages/personal.js?v=5.0_20260724_115300"></script>
+    <script src="js/pages/exchange.js?v=5.0_20260724_115300"></script>
+    <script src="js/pages/analytics.js?v=5.0_20260724_115300"></script>
+    <script src="js/pages/settings.js?v=5.0_20260724_115300"></script>
+    <script src="js/app.js?v=5.0_20260724_115300"></script>
 
     <!-- Service Worker 해제 및 브라우저 강제 캐시 초기화 -->
     <script>

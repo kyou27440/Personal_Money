@@ -29,7 +29,6 @@ const Router = {
         const titles = {
             dashboard: '📊 대시보드',
             personal: '💰 개인 가계부',
-            club: '⛳ 회사 모임 관리',
             exchange: '💱 환전 관리',
             analytics: '📈 자산 현황 및 통계',
             settings: '⚙️ 설정'

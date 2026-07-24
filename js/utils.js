@@ -21,27 +21,37 @@ const Utils = {
         return Number(n).toLocaleString();
     },
 
-    /** 날짜 포맷: YYYY-MM-DD */
+    /** 날짜 포맷: YYYY-MM-DD (로컬 시간 기준) */
     formatDate(dateStr) {
         if (!dateStr) return '';
-        const d = new Date(dateStr);
-        return d.toISOString().split('T')[0];
+        const clean = String(dateStr).split('T')[0];
+        const parts = clean.split('-');
+        if (parts.length === 3) {
+            return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        }
+        return dateStr;
     },
 
     /** 날짜 한국식 표시: 07월 21일 (월) */
     formatDateKR(dateStr) {
         if (!dateStr) return '';
-        const d = new Date(dateStr);
+        const clean = String(dateStr).split('T')[0];
+        const parts = clean.split('-').map(Number);
+        if (parts.length < 3 || isNaN(parts[0])) return dateStr;
+        const d = new Date(parts[0], parts[1] - 1, parts[2]);
         const days = ['일', '월', '화', '수', '목', '금', '토'];
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(parts[1]).padStart(2, '0');
+        const dd = String(parts[2]).padStart(2, '0');
         return `${mm}월 ${dd}일 (${days[d.getDay()]})`;
     },
 
-    /** 오늘 날짜 YYYY-MM-DD */
+    /** 오늘 날짜 YYYY-MM-DD (로컬 시간 기준) */
     today() {
         const now = new Date();
-        return now.toISOString().split('T')[0];
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
     },
 
     /** 이번 달 시작일 */
@@ -54,7 +64,10 @@ const Utils = {
     monthEnd() {
         const now = new Date();
         const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        return last.toISOString().split('T')[0];
+        const yyyy = last.getFullYear();
+        const mm = String(last.getMonth() + 1).padStart(2, '0');
+        const dd = String(last.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
     },
 
     /** 이번 주 시작일 (월요일) */
@@ -64,12 +77,16 @@ const Utils = {
         const diff = day === 0 ? 6 : day - 1;
         const mon = new Date(now);
         mon.setDate(now.getDate() - diff);
-        return mon.toISOString().split('T')[0];
+        const yyyy = mon.getFullYear();
+        const mm = String(mon.getMonth() + 1).padStart(2, '0');
+        const dd = String(mon.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
     },
 
     /** 토스트 알림 */
     toast(message, type = 'info') {
         const container = document.getElementById('toast-container');
+        if (!container) return;
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
         const icons = { success: '✅', error: '❌', info: 'ℹ️' };
@@ -124,5 +141,5 @@ const Utils = {
     chartColors: [
         '#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b',
         '#f43f5e', '#3b82f6', '#ec4899', '#14b8a6', '#a855f7'
-    ],
+    ]
 };

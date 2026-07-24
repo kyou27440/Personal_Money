@@ -11,15 +11,15 @@ const PersonalPage = {
         <div class="personal-summary">
             <div class="summary-card emerald">
                 <div class="card-label">이번 달 수입</div>
-                <div class="card-value">${Utils.formatVND(summary.income)}</div>
+                <div class="card-value" id="summary-income">${Utils.formatVND(summary.income)}</div>
             </div>
             <div class="summary-card rose">
                 <div class="card-label">이번 달 지출</div>
-                <div class="card-value">${Utils.formatVND(summary.expense)}</div>
+                <div class="card-value" id="summary-expense">${Utils.formatVND(summary.expense)}</div>
             </div>
             <div class="summary-card indigo">
                 <div class="card-label">총 잔액</div>
-                <div class="card-value">${Utils.formatVND(balance)}</div>
+                <div class="card-value" id="summary-balance">${Utils.formatVND(balance)}</div>
             </div>
         </div>
 
@@ -36,9 +36,14 @@ const PersonalPage = {
             <span class="text-muted">~</span>
             <input type="date" id="filter-end" value="${Utils.today()}">
             <select id="filter-type">
-                <option value="">전체</option>
+                <option value="">전체 구분</option>
                 <option value="income">수입</option>
                 <option value="expense">지출</option>
+            </select>
+            <select id="filter-method">
+                <option value="">전체 수단</option>
+                <option value="transfer">💳 계좌이체</option>
+                <option value="cash">💵 현금</option>
             </select>
             <button class="btn btn-ghost btn-sm" id="btn-filter-tx">조회</button>
         </div>
@@ -46,10 +51,10 @@ const PersonalPage = {
         <div class="table-wrapper">
             <table>
                 <thead><tr>
-                    <th>날짜</th><th>구분</th><th>카테고리</th><th style="text-align:right">금액 (VND)</th><th>메모</th><th>작업</th>
+                    <th>날짜</th><th>구분</th><th>수단</th><th>카테고리</th><th style="text-align:right">금액 (VND)</th><th>메모</th><th>작업</th>
                 </tr></thead>
                 <tbody id="tx-table-body">
-                    <tr><td colspan="6" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
                 </tbody>
             </table>
         </div>`;
@@ -62,22 +67,44 @@ const PersonalPage = {
         await this.loadTransactions();
     },
 
+    async refreshSummary() {
+        const summary = await Store.getTransactionSummary(Utils.monthStart(), Utils.monthEnd());
+        const balance = await Store.getTotalBalance();
+        const incEl = document.getElementById('summary-income');
+        const expEl = document.getElementById('summary-expense');
+        const balEl = document.getElementById('summary-balance');
+        if (incEl) incEl.textContent = Utils.formatVND(summary.income);
+        if (expEl) expEl.textContent = Utils.formatVND(summary.expense);
+        if (balEl) balEl.textContent = Utils.formatVND(balance);
+    },
+
     async loadTransactions() {
-        const startDate = document.getElementById('filter-start').value;
-        const endDate = document.getElementById('filter-end').value;
-        const type = document.getElementById('filter-type').value;
-        const txList = await Store.getTransactions({ startDate, endDate, type: type || undefined });
+        const startDate = document.getElementById('filter-start')?.value || Utils.monthStart();
+        const endDate = document.getElementById('filter-end')?.value || Utils.today();
+        const type = document.getElementById('filter-type')?.value;
+        const method = document.getElementById('filter-method')?.value;
+        const txList = await Store.getTransactions({
+            startDate,
+            endDate,
+            type: type || undefined,
+            payment_method: method || undefined
+        });
         const tbody = document.getElementById('tx-table-body');
+        if (!tbody) return;
 
         if (txList.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:40px">거래 내역이 없습니다</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:40px">거래 내역이 없습니다</td></tr>';
             return;
         }
 
-        tbody.innerHTML = txList.map(tx => `
+        tbody.innerHTML = txList.map(tx => {
+            const methodLabel = tx.payment_method === 'cash' ? '💵 현금' : '💳 계좌이체';
+            const methodClass = tx.payment_method === 'cash' ? 'badge-amber' : 'badge-indigo';
+            return `
             <tr>
                 <td>${Utils.formatDateKR(tx.tx_date)}</td>
                 <td><span class="badge badge-${tx.type}">${tx.type === 'income' ? '수입' : '지출'}</span></td>
+                <td><span class="badge ${methodClass}" style="font-size:0.75rem;padding:2px 8px">${methodLabel}</span></td>
                 <td>${tx.personal_categories?.icon || ''} ${Utils.escapeHtml(tx.personal_categories?.name || '')}</td>
                 <td style="text-align:right;font-weight:600" class="${tx.type === 'income' ? 'text-emerald' : 'text-rose'}">${tx.type === 'income' ? '+' : '-'}${Utils.formatVND(tx.amount)}</td>
                 <td class="text-secondary">${Utils.escapeHtml(tx.memo)}</td>
@@ -86,7 +113,8 @@ const PersonalPage = {
                     <button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteTx(${tx.id})" title="삭제">🗑️</button>
                 </td>
             </tr>
-        `).join('');
+            `;
+        }).join('');
     },
 
     async openTxModal(editTx = null) {
@@ -94,7 +122,7 @@ const PersonalPage = {
         const isEdit = !!editTx;
 
         const catOptions = cats.map(c =>
-            `<option value="${c.id}" ${editTx?.category_id === c.id ? 'selected' : ''}>${c.icon} ${c.name} (${c.type === 'income' ? '수입' : '지출'})</option>`
+            `<option value="${c.id}" ${editTx?.category_id == c.id ? 'selected' : ''}>${c.icon} ${c.name} (${c.type === 'income' ? '수입' : '지출'})</option>`
         ).join('');
 
         Modal.open(isEdit ? '거래 수정' : '수입/지출 입력', `
@@ -111,10 +139,17 @@ const PersonalPage = {
                     </select>
                 </div>
                 <div class="form-group">
+                    <label>결제/입금 수단</label>
+                    <select id="tx-method">
+                        <option value="transfer" ${editTx?.payment_method === 'transfer' || !editTx ? 'selected' : ''}>💳 계좌이체 (은행)</option>
+                        <option value="cash" ${editTx?.payment_method === 'cash' ? 'selected' : ''}>💵 현금</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>카테고리</label>
                     <select id="tx-category">${catOptions}</select>
                 </div>
-                <div class="form-group">
+                <div class="form-group full-width">
                     <label>금액 (VND)</label>
                     <input type="text" id="tx-amount" placeholder="예: 250000" value="${editTx ? editTx.amount : ''}" inputmode="numeric">
                 </div>
@@ -143,15 +178,18 @@ const PersonalPage = {
         filterCats();
 
         document.getElementById('btn-save-tx').addEventListener('click', async () => {
+            const txDate = document.getElementById('tx-date').value;
+            const amount = Utils.parseAmount(document.getElementById('tx-amount').value);
             const data = {
-                tx_date: document.getElementById('tx-date').value,
+                tx_date: txDate,
                 type: document.getElementById('tx-type').value,
+                payment_method: document.getElementById('tx-method').value,
                 category_id: Number(document.getElementById('tx-category').value),
-                amount: Utils.parseAmount(document.getElementById('tx-amount').value),
+                amount: amount,
                 memo: document.getElementById('tx-memo').value.trim()
             };
             if (!data.tx_date || !data.amount || data.amount <= 0) {
-                Utils.toast('날짜와 금액을 입력해주세요', 'error');
+                Utils.toast('날짜와 금액(0 이상)을 입력해주세요', 'error');
                 return;
             }
             let result;
@@ -163,7 +201,15 @@ const PersonalPage = {
             if (result) {
                 Utils.toast(isEdit ? '거래가 수정되었습니다' : '거래가 저장되었습니다', 'success');
                 Modal.close();
-                Router.navigate('personal');
+
+                // 날짜 필터가 입력된 날짜를 포함하도록 자동 보정
+                const filterEnd = document.getElementById('filter-end');
+                const filterStart = document.getElementById('filter-start');
+                if (filterEnd && filterEnd.value < txDate) filterEnd.value = txDate;
+                if (filterStart && filterStart.value > txDate) filterStart.value = txDate;
+
+                await this.loadTransactions();
+                await this.refreshSummary();
             } else {
                 Utils.toast('저장에 실패했습니다', 'error');
             }
@@ -182,7 +228,8 @@ const PersonalPage = {
             const result = await Store.deleteTransaction(id);
             if (result) {
                 Utils.toast('삭제되었습니다', 'success');
-                Router.navigate('personal');
+                await this.loadTransactions();
+                await this.refreshSummary();
             }
         }
     },
