@@ -22,8 +22,8 @@ const DashboardPage = {
                 </div>
             </div>
             <div style="text-align:right;">
-                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.0.4 (클라우드 완벽 동기화)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-25 07:25</div>
+                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.0.5 (전수 이관 픽스)</span>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-25 07:36</div>
             </div>
         </div>
 
