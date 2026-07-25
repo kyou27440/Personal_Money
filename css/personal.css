@@ -3,11 +3,101 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+/* 요약 카드 크기 반으로 슬림 축소 (사용자 요청 반영: 높이 및 여백 축소) */
+.personal-summary .summary-card {
+    padding: 10px 16px !important;
+    border-radius: var(--radius-md);
+    min-height: unset;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.personal-summary .card-label {
+    font-size: 0.76rem !important;
+    font-weight: 600 !important;
+    margin-bottom: 2px !important;
+    letter-spacing: 0.3px;
+    color: var(--text-muted);
+}
+
+.personal-summary .card-value {
+    font-size: 1.25rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.3px;
+}
+
+/* 카테고리별 사용금액 & 점유율 브레이크다운 위젯 */
+.cat-breakdown-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
     margin-bottom: var(--space-lg);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    transition: all var(--transition-base);
+}
+
+.cat-breakdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.cat-breakdown-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cat-stacked-bar {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    margin-bottom: 14px;
+}
+
+.cat-stacked-segment {
+    height: 100%;
+    transition: width 0.4s ease;
+}
+
+.cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
+}
+
+.cat-item-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 10px 14px;
+    transition: all 0.2s ease;
+}
+
+.cat-item-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
 }
 
 @media (max-width: 768px) {
     .personal-summary {
+        grid-template-columns: 1fr;
+    }
+    .cat-grid {
         grid-template-columns: 1fr;
     }
 }
