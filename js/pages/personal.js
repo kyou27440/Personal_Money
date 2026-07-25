@@ -5,7 +5,7 @@
 const PersonalPage = {
     async render() {
         const summary = await Store.getTransactionSummary(Utils.monthStart(), Utils.monthEnd());
-        const balance = await Store.getTotalBalance();
+        const breakdown = await Store.getBalanceBreakdown();
 
         return `
         <div class="personal-summary">
@@ -19,7 +19,11 @@ const PersonalPage = {
             </div>
             <div class="summary-card indigo">
                 <div class="card-label">총 잔액</div>
-                <div class="card-value" id="summary-balance">${Utils.formatVND(balance)}</div>
+                <div class="card-value" id="summary-balance">${Utils.formatVND(breakdown.total.balance)}</div>
+                <div class="card-sub" id="summary-balance-sub" style="display:flex;justify-content:center;gap:12px;margin-top:6px;font-size:0.82rem;color:var(--text-muted);">
+                    <span>💵 현금: <strong style="color:var(--accent-emerald)">${Utils.formatVND(breakdown.cash.balance)}</strong></span>
+                    <span>💳 계좌: <strong style="color:#6366f1">${Utils.formatVND(breakdown.transfer.balance)}</strong></span>
+                </div>
             </div>
         </div>
 
@@ -128,13 +132,20 @@ const PersonalPage = {
 
     async refreshSummary() {
         const summary = await Store.getTransactionSummary(Utils.monthStart(), Utils.monthEnd());
-        const balance = await Store.getTotalBalance();
+        const breakdown = await Store.getBalanceBreakdown();
         const incEl = document.getElementById('summary-income');
         const expEl = document.getElementById('summary-expense');
         const balEl = document.getElementById('summary-balance');
+        const balSubEl = document.getElementById('summary-balance-sub');
         if (incEl) incEl.textContent = Utils.formatVND(summary.income);
         if (expEl) expEl.textContent = Utils.formatVND(summary.expense);
-        if (balEl) balEl.textContent = Utils.formatVND(balance);
+        if (balEl) balEl.textContent = Utils.formatVND(breakdown.total.balance);
+        if (balSubEl) {
+            balSubEl.innerHTML = `
+                <span>💵 현금: <strong style="color:var(--accent-emerald)">${Utils.formatVND(breakdown.cash.balance)}</strong></span>
+                <span>💳 계좌: <strong style="color:#6366f1">${Utils.formatVND(breakdown.transfer.balance)}</strong></span>
+            `;
+        }
     },
 
     renderCategoryBreakdown(txList) {
