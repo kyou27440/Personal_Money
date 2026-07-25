@@ -19,43 +19,146 @@ const DEFAULT_CATEGORIES = [
 
 const Store = {
 
-    // ─── LocalStorage 전수 정제 & 구형 데이터 완전 차단 ───
-    _cleanLegacyLocalStorage() {
-        try {
-            // 과거 오염을 유발하던 구형 키 삭제
-            ['mony_usage_personal_transactions', 'mony_usage_personal_categories', 'mony_usage_personal_exchanges'].forEach(k => {
-                localStorage.removeItem(k);
-            });
+    // ─── LocalStorage 전수 탐색 (모든 구형/신형 키 통합 스캔) ───
+    _scanAllLocalTransactions() {
+        const found = [];
+        const seen = new Set();
 
-            // mymoney_transactions 정제: 금액이 0보다 큰 유효 거래만 보존
-            const raw = localStorage.getItem('mymoney_transactions');
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                    const clean = parsed.filter(t => t && Utils.parseAmount(t.amount) > 0 && t.type);
-                    localStorage.setItem('mymoney_transactions', JSON.stringify(clean));
+        const addCandidate = (item) => {
+            if (item && typeof item === 'object') {
+                const amt = Utils.parseAmount(item.amount);
+                if (amt > 0) {
+                    const dStr = Utils.formatDate(item.tx_date || item.date || item.created_at || Utils.today());
+                    const tType = String(item.type || (item.category_type || 'expense')).trim().toLowerCase();
+                    const memoStr = String(item.memo || item.note || item.description || '').trim();
+                    const key = `${dStr}_${amt}_${tType}_${memoStr}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        found.push({
+                            ...item,
+                            tx_date: dStr,
+                            amount: amt,
+                            type: tType,
+                            memo: memoStr
+                        });
+                    }
+                }
+            }
+        };
+
+        const keysToScan = [
+            'mymoney_transactions',
+            'mony_usage_personal_transactions',
+            'mymoney_personal_transactions',
+            'mony_usage_transactions',
+            'transactions',
+            'personal_transactions',
+            'mymoney_personal_ledger',
+            'personal_ledger'
+        ];
+
+        // 1. 알려진 기본 키 탐색
+        keysToScan.forEach(k => {
+            try {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) parsed.forEach(addCandidate);
+                }
+            } catch(e) {}
+        });
+
+        // 2. LocalStorage 전체 동적 탐색 (과거 다른 키명 보관 데이터 누락 방지)
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k) {
+                    try {
+                        const raw = localStorage.getItem(k);
+                        if (raw && (raw.startsWith('[') || raw.startsWith('{'))) {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) {
+                                parsed.forEach(item => {
+                                    if (item && (item.amount != null || item.tx_date || item.date)) {
+                                        addCandidate(item);
+                                    }
+                                });
+                            }
+                        }
+                    } catch(e) {}
                 }
             }
         } catch(e) {}
+
+        return found;
     },
 
-    // ─── LocalStorage 탐색 ───
-    _scanAllLocalTransactions() {
-        this._cleanLegacyLocalStorage();
+    _scanAllLocalExchanges() {
         const found = [];
+        const seen = new Set();
+
+        const addCandidate = (item) => {
+            if (item && typeof item === 'object') {
+                const vAmt = Utils.parseAmount(item.amount_vnd);
+                const kAmt = Utils.parseAmount(item.amount_krw);
+                if (vAmt > 0 || kAmt > 0) {
+                    const dStr = Utils.formatDate(item.tx_date || item.date || Utils.today());
+                    const tType = item.tx_type || 'KRW_TO_VND';
+                    const key = `${dStr}_${vAmt}_${kAmt}_${tType}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        found.push({
+                            ...item,
+                            tx_date: dStr,
+                            amount_vnd: vAmt,
+                            amount_krw: kAmt,
+                            tx_type: tType
+                        });
+                    }
+                }
+            }
+        };
+
+        const keysToScan = [
+            'mymoney_exchanges',
+            'mony_usage_personal_exchanges',
+            'mymoney_personal_exchanges',
+            'mony_usage_exchanges',
+            'exchanges',
+            'personal_exchanges'
+        ];
+
+        keysToScan.forEach(k => {
+            try {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) parsed.forEach(addCandidate);
+                }
+            } catch(e) {}
+        });
+
         try {
-            const raw = localStorage.getItem('mymoney_transactions');
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                    parsed.forEach(item => {
-                        if (item && typeof item === 'object' && Utils.parseAmount(item.amount) > 0) {
-                            found.push(item);
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k) {
+                    try {
+                        const raw = localStorage.getItem(k);
+                        if (raw && raw.startsWith('[')) {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) {
+                                parsed.forEach(item => {
+                                    if (item && (item.amount_vnd || item.amount_krw)) {
+                                        addCandidate(item);
+                                    }
+                                });
+                            }
                         }
-                    });
+                    } catch(e) {}
                 }
             }
         } catch(e) {}
+
         return found;
     },
 
@@ -84,24 +187,28 @@ const Store = {
             if (localTx.length === 0) return;
 
             // DB에 존재하는 데이터 확인
-            const { data: dbTx } = await supabase.from('personal_transactions').select('id, amount, tx_date, type');
-            const existingKeys = new Set((dbTx || []).map(t => `${t.tx_date}_${t.amount}_${t.type}`));
+            const { data: dbTx } = await supabase.from('personal_transactions').select('id, amount, tx_date, type, memo');
+            const existingKeys = new Set((dbTx || []).map(t => `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).trim().toLowerCase()}_${String(t.memo || '').trim()}`));
+            const validCatIds = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 
             for (const item of localTx) {
                 const amt = Utils.parseAmount(item.amount);
                 const tType = String(item.type || 'expense').trim().toLowerCase();
                 const dStr = Utils.formatDate(item.tx_date || Utils.today());
-                const key = `${dStr}_${amt}_${tType}`;
+                const memoStr = String(item.memo || '').trim();
+                const key = `${dStr}_${amt}_${tType}_${memoStr}`;
 
                 if (amt > 0 && !existingKeys.has(key)) {
-                    // Supabase로 이관 (DB에 존재하는 컬럼만 포함)
-                    const catId = item.category_id ? (isNaN(Number(item.category_id)) ? 1 : Number(item.category_id)) : (tType === 'income' ? 7 : 1);
+                    let catId = Number(item.category_id);
+                    if (!validCatIds.has(catId)) {
+                        catId = tType === 'income' ? 10 : 1;
+                    }
                     const payload = {
                         tx_date: dStr,
                         type: tType,
                         category_id: catId,
                         amount: amt,
-                        memo: item.memo || '이전 이관 데이터'
+                        memo: memoStr || '이전 이관 데이터'
                     };
                     const { data, error } = await supabase.from('personal_transactions').insert(payload).select().single();
                     if (!error && data) {
@@ -115,24 +222,24 @@ const Store = {
         }
 
         // 환전 내역도 로컬 -> 클라우드 이관 시도
-        this._syncLocalExchangesToCloud();
+        await this._syncLocalExchangesToCloud();
     },
 
     async _syncLocalExchangesToCloud() {
         try {
-            const localEx = this._getLocal('exchanges', []);
+            const localEx = this._scanAllLocalExchanges();
             if (localEx.length === 0) return;
 
             const { data: dbEx } = await supabase.from('exchange_transactions').select('id, amount_vnd, amount_krw, tx_date, tx_type');
-            const existingKeys = new Set((dbEx || []).map(e => `${e.tx_date}_${e.amount_vnd}_${e.amount_krw}_${e.tx_type}`));
+            const existingKeys = new Set((dbEx || []).map(e => `${Utils.formatDate(e.tx_date)}_${Utils.parseAmount(e.amount_vnd)}_${Utils.parseAmount(e.amount_krw)}_${e.tx_type}`));
 
             for (const item of localEx) {
                 const vAmt = Utils.parseAmount(item.amount_vnd);
                 const kAmt = Utils.parseAmount(item.amount_krw);
                 const dStr = Utils.formatDate(item.tx_date || Utils.today());
-                const key = `${dStr}_${vAmt}_${kAmt}_${item.tx_type}`;
+                const key = `${dStr}_${vAmt}_${kAmt}_${item.tx_type || 'KRW_TO_VND'}`;
 
-                if (vAmt > 0 && !existingKeys.has(key)) {
+                if ((vAmt > 0 || kAmt > 0) && !existingKeys.has(key)) {
                     const payload = {
                         tx_date: dStr,
                         person_name: item.person_name || '본인',
@@ -266,20 +373,30 @@ const Store = {
             filteredLocal = filteredLocal.filter(t => String(t.category_id) === String(filters.category_id));
         }
 
-        // DB와 로컬 100% 통합
+        // DB와 로컬 100% 통합 (DB 전송 완료된 로컬 항목 중복 제거)
+        const dbKeys = new Set(dbTx.map(t => `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).trim().toLowerCase()}_${String(t.memo || '').trim()}`));
         const txMap = {};
+
         filteredLocal.forEach(t => {
-            const idKey = t.id ? String(t.id) : ('local_' + Utils.formatDate(t.tx_date) + '_' + Utils.parseAmount(t.amount) + '_' + (t.type || ''));
-            const cObj = t.personal_categories || catMap[String(t.category_id)] || (String(t.type).trim().toLowerCase() === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
-            txMap[idKey] = {
-                ...t,
-                id: idKey,
-                tx_date: Utils.formatDate(t.tx_date || Utils.today()),
-                type: String(t.type || 'expense').trim().toLowerCase(),
-                amount: Utils.parseAmount(t.amount),
-                payment_method: t.payment_method || 'transfer',
-                personal_categories: cObj
-            };
+            const dStr = Utils.formatDate(t.tx_date || Utils.today());
+            const amt = Utils.parseAmount(t.amount);
+            const tType = String(t.type || 'expense').trim().toLowerCase();
+            const memoStr = String(t.memo || '').trim();
+            const key = `${dStr}_${amt}_${tType}_${memoStr}`;
+
+            if (!dbKeys.has(key)) {
+                const idKey = t.id ? String(t.id) : ('local_' + key);
+                const cObj = t.personal_categories || catMap[String(t.category_id)] || (tType === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
+                txMap[idKey] = {
+                    ...t,
+                    id: idKey,
+                    tx_date: dStr,
+                    type: tType,
+                    amount: amt,
+                    payment_method: t.payment_method || 'transfer',
+                    personal_categories: cObj
+                };
+            }
         });
 
         dbTx.forEach(t => {
@@ -322,10 +439,16 @@ const Store = {
             payment_method: tx.payment_method || 'transfer'
         };
 
+        const validCatIds = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+        let catId = Number(cleanTx.category_id);
+        if (!validCatIds.has(catId)) {
+            catId = cleanTx.type === 'income' ? 10 : 1;
+        }
+
         const dbPayload = {
             tx_date: cleanTx.tx_date,
             type: cleanTx.type,
-            category_id: Number(cleanTx.category_id) || (cleanTx.type === 'income' ? 7 : 1),
+            category_id: catId,
             amount: cleanTx.amount,
             memo: cleanTx.memo || ''
         };
