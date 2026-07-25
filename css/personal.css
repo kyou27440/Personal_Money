@@ -6,7 +6,7 @@
     margin-bottom: var(--space-md);
 }
 
-/* 요약 카드 크기 반으로 슬림 축소 (사용자 요청 반영: 높이 및 여백 축소) */
+/* 요약 카드 크기 반으로 슬림 축소 */
 .personal-summary .summary-card {
     padding: 10px 16px !important;
     border-radius: var(--radius-md);
@@ -30,42 +30,48 @@
     letter-spacing: -0.3px;
 }
 
-/* 카테고리별 사용금액 & 점유율 브레이크다운 위젯 */
-.cat-breakdown-card {
+/* 초슬림 카테고리 점유율 위젯 (1줄 컴팩트 디자인) */
+.cat-compact-bar-container {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 16px 20px;
-    margin-bottom: var(--space-lg);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    transition: all var(--transition-base);
+    border-radius: var(--radius-md);
+    padding: 8px 14px;
+    margin-bottom: var(--space-md);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+    transition: all 0.2s ease;
 }
 
-.cat-breakdown-header {
+.cat-compact-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
+    gap: 10px;
 }
 
-.cat-breakdown-title {
-    font-weight: 700;
-    font-size: 0.95rem;
-    color: var(--text-primary);
+.cat-compact-left {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 1;
+    min-width: 220px;
 }
 
-.cat-stacked-bar {
-    height: 10px;
-    background: rgba(255, 255, 255, 0.06);
-    border-radius: 6px;
+.cat-compact-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.cat-compact-bar {
+    flex: 1;
+    max-width: 220px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
     overflow: hidden;
     display: flex;
-    margin-bottom: 14px;
 }
 
 .cat-stacked-segment {
@@ -73,29 +79,57 @@
     transition: width 0.4s ease;
 }
 
+.cat-compact-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.cat-pills-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.cat-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .cat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
 }
 
 .cat-item-card {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 10px;
-    padding: 10px 14px;
+    border-radius: 8px;
+    padding: 8px 12px;
     transition: all 0.2s ease;
 }
 
 .cat-item-card:hover {
     background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.15);
-    transform: translateY(-1px);
 }
 
 @media (max-width: 768px) {
     .personal-summary {
         grid-template-columns: 1fr;
+    }
+    .cat-compact-bar {
+        max-width: 100%;
     }
     .cat-grid {
         grid-template-columns: 1fr;
