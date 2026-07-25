@@ -58,6 +58,8 @@ const PersonalPage = {
             <button class="btn btn-ghost btn-sm" id="btn-filter-tx">조회</button>
         </div>
 
+        <div id="category-breakdown-container"></div>
+
         <div class="table-wrapper">
             <table>
                 <thead><tr>
@@ -135,6 +137,102 @@ const PersonalPage = {
         if (balEl) balEl.textContent = Utils.formatVND(balance);
     },
 
+    renderCategoryBreakdown(txList) {
+        const container = document.getElementById('category-breakdown-container');
+        if (!container) return;
+
+        if (!txList || txList.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const expenseMap = {};
+        let totalExpense = 0;
+        let totalIncome = 0;
+
+        txList.forEach(tx => {
+            const amt = Utils.parseAmount(tx.amount);
+            const isIncome = String(tx.type).trim().toLowerCase() === 'income';
+            if (isIncome) {
+                totalIncome += amt;
+            } else {
+                totalExpense += amt;
+                const catName = tx.personal_categories?.name || '기타';
+                const catIcon = tx.personal_categories?.icon || '💸';
+                const key = `${catIcon} ${catName}`;
+                if (!expenseMap[key]) {
+                    expenseMap[key] = { name: catName, icon: catIcon, amount: 0, count: 0 };
+                }
+                expenseMap[key].amount += amt;
+                expenseMap[key].count += 1;
+            }
+        });
+
+        const catArray = Object.values(expenseMap);
+        catArray.sort((a, b) => b.amount - a.amount);
+
+        if (catArray.length === 0 && totalIncome === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const colors = [
+            '#38bdf8', '#fbbf24', '#f43f5e', '#10b981', '#8b5cf6',
+            '#ec4899', '#06b6d4', '#6366f1', '#f97316', '#a855f7'
+        ];
+
+        let stackedBarHtml = '';
+        let catGridHtml = '';
+
+        catArray.forEach((item, index) => {
+            const color = colors[index % colors.length];
+            const pct = totalExpense > 0 ? ((item.amount / totalExpense) * 100).toFixed(1) : 0;
+            stackedBarHtml += `<div class="cat-stacked-segment" style="width:${pct}%;background:${color};" title="${item.name}: ${pct}% (${Utils.formatVND(item.amount)})"></div>`;
+
+            catGridHtml += `
+                <div class="cat-item-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                        <span style="font-size:0.88rem;font-weight:600;color:var(--text-primary);">${item.icon} ${Utils.escapeHtml(item.name)}</span>
+                        <span class="badge" style="background:${color}22;color:${color};font-weight:700;font-size:0.78rem;border:1px solid ${color}44;">${pct}%</span>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.85rem;margin-top:2px;">
+                        <span style="color:var(--text-muted);font-size:0.78rem;">${item.count}건</span>
+                        <strong style="color:${color};font-weight:700;">${Utils.formatVND(item.amount)}</strong>
+                    </div>
+                    <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px;margin-top:6px;overflow:hidden;">
+                        <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;transition:width 0.4s ease;"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = `
+            <div class="cat-breakdown-card">
+                <div class="cat-breakdown-header">
+                    <div class="cat-breakdown-title">
+                        <span>📊</span>
+                        <span>기간 내 카테고리별 지출 & 점유율</span>
+                        <span class="badge badge-indigo" style="font-size:0.75rem;padding:2px 8px;font-weight:600;">카테고리 ${catArray.length}개</span>
+                    </div>
+                    <div style="font-size:0.85rem;color:var(--text-secondary);">
+                        지출 합계: <strong class="text-rose" style="font-size:0.95rem;">${Utils.formatVND(totalExpense)}</strong>
+                        ${totalIncome > 0 ? `<span style="margin:0 8px;opacity:0.3;">|</span>수입 합계: <strong class="text-emerald" style="font-size:0.95rem;">${Utils.formatVND(totalIncome)}</strong>` : ''}
+                    </div>
+                </div>
+                ${catArray.length > 0 ? `
+                    <div class="cat-stacked-bar">
+                        ${stackedBarHtml}
+                    </div>
+                    <div class="cat-grid">
+                        ${catGridHtml}
+                    </div>
+                ` : `
+                    <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.85rem;">지출 항목이 없습니다</div>
+                `}
+            </div>
+        `;
+    },
+
     async loadTransactions() {
         const startDate = document.getElementById('filter-start')?.value || Utils.monthStart();
         const endDate = document.getElementById('filter-end')?.value || Utils.today();
@@ -155,6 +253,9 @@ const PersonalPage = {
             payment_method: method && method.trim() !== '' ? method.trim() : undefined,
             sort: sort
         });
+
+        // 카테고리별 사용금액 및 점유율 브레이크다운 렌더링
+        this.renderCategoryBreakdown(txList);
         const tbody = document.getElementById('tx-table-body');
         if (!tbody) return;
 
@@ -183,7 +284,7 @@ const PersonalPage = {
                 <td style="text-align:center">
                     <input type="checkbox" class="tx-cb" data-id="${tx.id}" data-amount="${amt}" style="cursor:pointer;width:16px;height:16px">
                 </td>
-                <td>${Utils.formatDateKR(tx.tx_date)}</td>
+                <td style="white-space:nowrap;font-weight:500">${Utils.formatDateTimeKR(tx.tx_date, tx.created_at)}</td>
                 <td>${typeBadge}</td>
                 <td><span class="badge ${methodClass}" style="font-size:0.75rem;padding:2px 8px">${methodLabel}</span></td>
                 <td>${tx.personal_categories?.icon || '💰'} ${Utils.escapeHtml(tx.personal_categories?.name || '기타')}</td>
@@ -209,12 +310,24 @@ const PersonalPage = {
     async openTxModal(editTx = null) {
         const cats = await Store.getCategories();
         const isEdit = !!editTx;
+        const editTime = editTx && editTx.created_at ? (() => {
+            try {
+                const d = new Date(editTx.created_at);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const mm = String(d.getMinutes()).padStart(2, '0');
+                return `${hh}:${mm}`;
+            } catch(e) { return Utils.currentTime(); }
+        })() : Utils.currentTime();
 
         Modal.open(isEdit ? '거래 수정' : '수입/지출 입력', `
             <div class="form-grid">
                 <div class="form-group">
                     <label>날짜</label>
                     <input type="date" id="tx-date" value="${editTx ? Utils.formatDate(editTx.tx_date) : Utils.today()}">
+                </div>
+                <div class="form-group">
+                    <label>시간 (시:분)</label>
+                    <input type="time" id="tx-time" value="${editTime}">
                 </div>
                 <div class="form-group">
                     <label>구분</label>
@@ -230,7 +343,7 @@ const PersonalPage = {
                         <option value="cash" ${editTx?.payment_method === 'cash' ? 'selected' : ''}>💵 현금</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group full-width">
                     <label>카테고리</label>
                     <select id="tx-category"></select>
                 </div>
@@ -272,11 +385,17 @@ const PersonalPage = {
 
         document.getElementById('btn-save-tx')?.addEventListener('click', async () => {
             const txDate = Utils.formatDate(document.getElementById('tx-date').value);
+            const txTime = document.getElementById('tx-time')?.value || Utils.currentTime();
             const amount = Utils.parseAmount(document.getElementById('tx-amount').value);
             const selectedCatId = document.getElementById('tx-category').value;
+            let fullISO = new Date().toISOString();
+            try {
+                fullISO = new Date(`${txDate}T${txTime}:00`).toISOString();
+            } catch(e) {}
 
             const data = {
                 tx_date: txDate,
+                created_at: fullISO,
                 type: String(document.getElementById('tx-type').value).trim().toLowerCase(),
                 payment_method: document.getElementById('tx-method').value,
                 category_id: selectedCatId ? (isNaN(Number(selectedCatId)) ? selectedCatId : Number(selectedCatId)) : 1,
