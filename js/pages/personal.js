@@ -12,10 +12,18 @@ const PersonalPage = {
             <div class="summary-card emerald">
                 <div class="card-label">이번 달 수입</div>
                 <div class="card-value" id="summary-income">${Utils.formatVND(summary.income)}</div>
+                <div class="card-sub" id="summary-income-sub" style="display:flex;justify-content:center;gap:12px;margin-top:6px;font-size:0.82rem;color:var(--text-muted);">
+                    <span>💵 현금: <strong style="color:var(--accent-emerald)">${Utils.formatVND(summary.incomeCash)}</strong></span>
+                    <span>💳 계좌: <strong style="color:#6366f1">${Utils.formatVND(summary.incomeTransfer)}</strong></span>
+                </div>
             </div>
             <div class="summary-card rose">
                 <div class="card-label">이번 달 지출</div>
                 <div class="card-value" id="summary-expense">${Utils.formatVND(summary.expense)}</div>
+                <div class="card-sub" id="summary-expense-sub" style="display:flex;justify-content:center;gap:12px;margin-top:6px;font-size:0.82rem;color:var(--text-muted);">
+                    <span>💵 현금: <strong style="color:var(--accent-emerald)">${Utils.formatVND(summary.expenseCash)}</strong></span>
+                    <span>💳 계좌: <strong style="color:#6366f1">${Utils.formatVND(summary.expenseTransfer)}</strong></span>
+                </div>
             </div>
             <div class="summary-card indigo">
                 <div class="card-label">총 잔액</div>
@@ -134,11 +142,25 @@ const PersonalPage = {
         const summary = await Store.getTransactionSummary(Utils.monthStart(), Utils.monthEnd());
         const breakdown = await Store.getBalanceBreakdown();
         const incEl = document.getElementById('summary-income');
+        const incSubEl = document.getElementById('summary-income-sub');
         const expEl = document.getElementById('summary-expense');
+        const expSubEl = document.getElementById('summary-expense-sub');
         const balEl = document.getElementById('summary-balance');
         const balSubEl = document.getElementById('summary-balance-sub');
         if (incEl) incEl.textContent = Utils.formatVND(summary.income);
+        if (incSubEl) {
+            incSubEl.innerHTML = `
+                <span>💵 현금: <strong style="color:var(--accent-emerald)">${Utils.formatVND(summary.incomeCash)}</strong></span>
+                <span>💳 계좌: <strong style="color:#6366f1">${Utils.formatVND(summary.incomeTransfer)}</strong></span>
+            `;
+        }
         if (expEl) expEl.textContent = Utils.formatVND(summary.expense);
+        if (expSubEl) {
+            expSubEl.innerHTML = `
+                <span>💵 현금: <strong style="color:var(--accent-emerald)">${Utils.formatVND(summary.expenseCash)}</strong></span>
+                <span>💳 계좌: <strong style="color:#6366f1">${Utils.formatVND(summary.expenseTransfer)}</strong></span>
+            `;
+        }
         if (balEl) balEl.textContent = Utils.formatVND(breakdown.total.balance);
         if (balSubEl) {
             balSubEl.innerHTML = `
