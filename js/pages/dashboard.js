@@ -14,17 +14,17 @@ const DashboardPage = {
         const monthSummary = await Store.getTransactionSummary(Utils.monthStart(), Utils.monthEnd());
 
         return `
-        <div class="version-banner" style="background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(16,185,129,0.15)); border: 1px solid rgba(99,102,241,0.3); border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-            <div style="display:flex;align-items:center;gap:12px;">
+        <div class="version-banner" style="background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(16,185,129,0.15)); border: 1px solid rgba(99,102,241,0.3); border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:240px;">
                 <span style="font-size:1.4rem;">💰</span>
                 <div>
-                    <div style="font-weight:700;font-size:0.98rem;color:var(--text-primary);">나만의 독립 개인 가계부 & 자산 관리 시스템</div>
+                    <div style="font-weight:700;font-size:0.98rem;color:var(--text-primary);">나만의 독립 개인 가계부 &amp; 자산 관리 시스템</div>
                     <div style="font-size:0.82rem;color:var(--text-muted);">개인 수입·지출 관리, 자산 분석 및 개인 환전 통합 대시보드</div>
                 </div>
             </div>
-            <div style="text-align:right;">
-                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.2.0 (현금/계좌 잔액 및 수입·지출 구분 지원)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-25 08:26</div>
+            <div style="text-align:right;flex-shrink:0;">
+                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.3.0 (수입·지출 현금/계좌 구분 완벽 지원)</span>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-25 08:35 업데이트</div>
             </div>
         </div>
 
@@ -42,7 +42,10 @@ const DashboardPage = {
                 <div class="card-icon">📉</div>
                 <div class="card-label">이번 달 지출</div>
                 <div class="card-value">${Utils.formatVND(monthSummary.expense)}</div>
-                <div class="card-sub">수입: ${Utils.formatVND(monthSummary.income)}</div>
+                <div class="card-sub" style="display:flex;gap:12px;margin-top:4px;">
+                    <span>💵 현금: <strong>${Utils.formatVND(monthSummary.expenseCash)}</strong></span>
+                    <span>💳 계좌: <strong>${Utils.formatVND(monthSummary.expenseTransfer)}</strong></span>
+                </div>
             </div>
             <div class="summary-card amber">
                 <div class="card-icon">💱</div>
@@ -52,9 +55,12 @@ const DashboardPage = {
             </div>
             <div class="summary-card emerald">
                 <div class="card-icon">📈</div>
-                <div class="card-label">이번 달 순수입</div>
-                <div class="card-value">${Utils.formatVND(monthSummary.income - monthSummary.expense)}</div>
-                <div class="card-sub">수입 - 지출 정산</div>
+                <div class="card-label">이번 달 수입</div>
+                <div class="card-value">${Utils.formatVND(monthSummary.income)}</div>
+                <div class="card-sub" style="display:flex;gap:12px;margin-top:4px;">
+                    <span>💵 현금: <strong>${Utils.formatVND(monthSummary.incomeCash)}</strong></span>
+                    <span>💳 계좌: <strong>${Utils.formatVND(monthSummary.incomeTransfer)}</strong></span>
+                </div>
             </div>
         </div>
 
