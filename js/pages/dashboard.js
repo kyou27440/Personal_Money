@@ -22,8 +22,8 @@ const DashboardPage = {
                 </div>
             </div>
             <div style="text-align:right;">
-                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.0.7 (날짜/금액 정렬 탑재)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-25 07:41</div>
+                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.0.9 (슬림 카드 및 카테고리 점유율 위젯)</span>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-25 07:46</div>
             </div>
         </div>
 
@@ -84,7 +84,7 @@ const DashboardPage = {
                 <div class="activity-icon">${icon}</div>
                 <div class="activity-info">
                     <div class="activity-title">${methodTag} ${tx.personal_categories?.icon || ''} ${Utils.escapeHtml(tx.personal_categories?.name || '')} ${tx.memo ? '- ' + Utils.escapeHtml(tx.memo) : ''}</div>
-                    <div class="activity-meta">${Utils.formatDateKR(tx.tx_date)}</div>
+                    <div class="activity-meta">${Utils.formatDateTimeKR(tx.tx_date, tx.created_at)}</div>
                 </div>
                 <div class="${colorClass}" style="font-weight:600;white-space:nowrap">${sign}${Utils.formatVND(tx.amount)}</div>
             </li>`;
