@@ -49,6 +49,12 @@ const PersonalPage = {
                 <option value="transfer">💳 계좌이체</option>
                 <option value="cash">💵 현금</option>
             </select>
+            <select id="filter-sort">
+                <option value="date-desc">📅 최근 날짜순 (최신순)</option>
+                <option value="date-asc">📅 과거 날짜순 (오래된순)</option>
+                <option value="amount-desc">💰 금액 높은순</option>
+                <option value="amount-asc">💰 금액 낮은순</option>
+            </select>
             <button class="btn btn-ghost btn-sm" id="btn-filter-tx">조회</button>
         </div>
 
@@ -58,7 +64,13 @@ const PersonalPage = {
                     <th style="width:40px;text-align:center">
                         <input type="checkbox" id="select-all-tx" title="전체 선택" style="cursor:pointer;width:16px;height:16px">
                     </th>
-                    <th>날짜</th><th>구분</th><th>수단</th><th>카테고리</th><th style="text-align:right">금액 (VND)</th><th>메모</th><th>작업</th>
+                    <th id="th-sort-date" style="cursor:pointer;user-select:none" title="날짜 정렬 변경">날짜 <span id="sort-icon-date">🔽</span></th>
+                    <th>구분</th>
+                    <th>수단</th>
+                    <th>카테고리</th>
+                    <th id="th-sort-amount" style="text-align:right;cursor:pointer;user-select:none" title="금액 정렬 변경">금액 (VND) <span id="sort-icon-amount">↕️</span></th>
+                    <th>메모</th>
+                    <th>작업</th>
                 </tr></thead>
                 <tbody id="tx-table-body">
                     <tr><td colspan="8" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
@@ -71,8 +83,25 @@ const PersonalPage = {
         document.getElementById('btn-add-tx')?.addEventListener('click', () => this.openTxModal());
         document.getElementById('btn-manage-cat')?.addEventListener('click', () => this.openCategoryModal());
         document.getElementById('btn-filter-tx')?.addEventListener('click', () => this.loadTransactions());
+        document.getElementById('filter-sort')?.addEventListener('change', () => this.loadTransactions());
         document.getElementById('btn-bulk-delete-tx')?.addEventListener('click', () => this.bulkDeleteTx());
         document.getElementById('btn-select-zero-tx')?.addEventListener('click', () => this.selectZeroTx());
+
+        document.getElementById('th-sort-date')?.addEventListener('click', () => {
+            const sortEl = document.getElementById('filter-sort');
+            if (sortEl) {
+                sortEl.value = sortEl.value === 'date-desc' ? 'date-asc' : 'date-desc';
+                this.loadTransactions();
+            }
+        });
+
+        document.getElementById('th-sort-amount')?.addEventListener('click', () => {
+            const sortEl = document.getElementById('filter-sort');
+            if (sortEl) {
+                sortEl.value = sortEl.value === 'amount-desc' ? 'amount-asc' : 'amount-desc';
+                this.loadTransactions();
+            }
+        });
 
         const selectAllCb = document.getElementById('select-all-tx');
         if (selectAllCb) {
@@ -111,12 +140,20 @@ const PersonalPage = {
         const endDate = document.getElementById('filter-end')?.value || Utils.today();
         const type = document.getElementById('filter-type')?.value;
         const method = document.getElementById('filter-method')?.value;
+        const sort = document.getElementById('filter-sort')?.value || 'date-desc';
+
+        // 테이블 헤더 아이콘 동기화
+        const dateIcon = document.getElementById('sort-icon-date');
+        const amountIcon = document.getElementById('sort-icon-amount');
+        if (dateIcon) dateIcon.textContent = sort === 'date-desc' ? '🔽' : (sort === 'date-asc' ? '🔼' : '↕️');
+        if (amountIcon) amountIcon.textContent = sort === 'amount-desc' ? '🔽' : (sort === 'amount-asc' ? '🔼' : '↕️');
 
         const txList = await Store.getTransactions({
             startDate,
             endDate,
             type: type && type.trim() !== '' ? type.trim() : undefined,
-            payment_method: method && method.trim() !== '' ? method.trim() : undefined
+            payment_method: method && method.trim() !== '' ? method.trim() : undefined,
+            sort: sort
         });
         const tbody = document.getElementById('tx-table-body');
         if (!tbody) return;
