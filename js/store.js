@@ -576,13 +576,31 @@ const Store = {
     async getTransactionSummary(startDate, endDate) {
         const txList = await this.getTransactions({ startDate, endDate });
         let income = 0, expense = 0;
+        let incomeCash = 0, incomeTransfer = 0;
+        let expenseCash = 0, expenseTransfer = 0;
         txList.forEach(t => {
             const amt = Utils.parseAmount(t.amount);
             const tType = String(t.type).trim().toLowerCase();
-            if (tType === 'income') income += amt;
-            else if (tType === 'expense') expense += amt;
+            const pm = t.payment_method === 'cash' ? 'cash' : 'transfer';
+            if (tType === 'income') {
+                income += amt;
+                if (pm === 'cash') incomeCash += amt;
+                else incomeTransfer += amt;
+            } else if (tType === 'expense') {
+                expense += amt;
+                if (pm === 'cash') expenseCash += amt;
+                else expenseTransfer += amt;
+            }
         });
-        return { income, expense, balance: income - expense };
+        return {
+            income,
+            incomeCash,
+            incomeTransfer,
+            expense,
+            expenseCash,
+            expenseTransfer,
+            balance: income - expense
+        };
     },
 
     async getTotalBalance() {
