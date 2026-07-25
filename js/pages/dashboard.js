@@ -4,8 +4,9 @@
 
 const DashboardPage = {
     async render() {
-        const [balance, exchangeTotal, recentTx] = await Promise.all([
+        const [balance, breakdown, exchangeTotal, recentTx] = await Promise.all([
             Store.getTotalBalance(),
+            Store.getBalanceBreakdown(),
             Store.getExchangeTotal(),
             Store.getTransactions({ limit: 5 })
         ]);
@@ -22,8 +23,8 @@ const DashboardPage = {
                 </div>
             </div>
             <div style="text-align:right;">
-                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.1.0 (초슬림 1줄 점유율 바 & 상세 접기/펼치기)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-25 07:49</div>
+                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.2.0 (현금/계좌 잔액 및 수입·지출 구분 지원)</span>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-07-25 08:26</div>
             </div>
         </div>
 
@@ -32,7 +33,10 @@ const DashboardPage = {
                 <div class="card-icon">💰</div>
                 <div class="card-label">개인 자산 누적 잔액</div>
                 <div class="card-value">${Utils.formatVND(balance)}</div>
-                <div class="card-sub">전체 기간 수입 - 지출</div>
+                <div class="card-sub" style="display:flex;gap:12px;margin-top:4px;">
+                    <span>💵 현금: <strong>${Utils.formatVND(breakdown.cash.balance)}</strong></span>
+                    <span>💳 계좌: <strong>${Utils.formatVND(breakdown.transfer.balance)}</strong></span>
+                </div>
             </div>
             <div class="summary-card rose">
                 <div class="card-icon">📉</div>
