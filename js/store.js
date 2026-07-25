@@ -1,5 +1,5 @@
 /* ============================================
-   STORE.JS — 클라우드 자동 이관 & 멀티 도메인 완전 동기화 DAL
+   STORE.JS — 클라우드 단일 진실 출처 (Single Source of Truth) DAL
    ============================================ */
 if (typeof supabase === 'undefined' || typeof supabase.from !== 'function') {
     var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY || SUPABASE_ANON_KEY);
@@ -18,8 +18,75 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const Store = {
+    _isSyncing: false,
 
-    // ─── LocalStorage 전수 탐색 (모든 구형/신형 키 통합 스캔) ───
+    // ─── 로컬 오프라인 임시 드래프트 완전 제거 (동기화 완료 후 호출) ───
+    _clearLocalDrafts() {
+        const keysToRemove = [
+            'mymoney_transactions',
+            'mony_usage_personal_transactions',
+            'mymoney_personal_transactions',
+            'mony_usage_transactions',
+            'transactions',
+            'personal_transactions',
+            'mymoney_personal_ledger',
+            'personal_ledger',
+            'mymoney_exchanges',
+            'mony_usage_personal_exchanges',
+            'mymoney_personal_exchanges',
+            'mony_usage_exchanges',
+            'exchanges',
+            'personal_exchanges'
+        ];
+        keysToRemove.forEach(k => {
+            try { localStorage.removeItem(k); } catch(e) {}
+        });
+    },
+
+    // ─── Supabase DB 중복 데이터 근본 정제 ───
+    async _deduplicateDatabase() {
+        try {
+            const { data: dbTx } = await supabase.from('personal_transactions').select('id, tx_date, amount, type, memo').order('id', { ascending: true });
+            if (dbTx && dbTx.length > 0) {
+                const seen = new Set();
+                const duplicateIds = [];
+                dbTx.forEach(t => {
+                    const key = `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).trim().toLowerCase()}_${String(t.memo || '').trim()}`;
+                    if (seen.has(key)) {
+                        duplicateIds.push(t.id);
+                    } else {
+                        seen.add(key);
+                    }
+                });
+                if (duplicateIds.length > 0) {
+                    console.log('🧹 DB 가계부 중복 데이터 정제 삭제:', duplicateIds);
+                    await supabase.from('personal_transactions').delete().in('id', duplicateIds);
+                }
+            }
+        } catch(e) {}
+
+        try {
+            const { data: dbEx } = await supabase.from('exchange_transactions').select('id, tx_date, amount_vnd, amount_krw, tx_type, person_name').order('id', { ascending: true });
+            if (dbEx && dbEx.length > 0) {
+                const seen = new Set();
+                const duplicateIds = [];
+                dbEx.forEach(e => {
+                    const key = `${Utils.formatDate(e.tx_date)}_${Utils.parseAmount(e.amount_vnd)}_${Utils.parseAmount(e.amount_krw)}_${e.tx_type}_${e.person_name || ''}`;
+                    if (seen.has(key)) {
+                        duplicateIds.push(e.id);
+                    } else {
+                        seen.add(key);
+                    }
+                });
+                if (duplicateIds.length > 0) {
+                    console.log('🧹 DB 환전 중복 데이터 정제 삭제:', duplicateIds);
+                    await supabase.from('exchange_transactions').delete().in('id', duplicateIds);
+                }
+            }
+        } catch(e) {}
+    },
+
+    // ─── LocalStorage 탐색 (오프라인 미동기화 드래프트 전용) ───
     _scanAllLocalTransactions() {
         const found = [];
         const seen = new Set();
@@ -52,12 +119,9 @@ const Store = {
             'mymoney_personal_transactions',
             'mony_usage_transactions',
             'transactions',
-            'personal_transactions',
-            'mymoney_personal_ledger',
-            'personal_ledger'
+            'personal_transactions'
         ];
 
-        // 1. 알려진 기본 키 탐색
         keysToScan.forEach(k => {
             try {
                 const raw = localStorage.getItem(k);
@@ -67,28 +131,6 @@ const Store = {
                 }
             } catch(e) {}
         });
-
-        // 2. LocalStorage 전체 동적 탐색 (과거 다른 키명 보관 데이터 누락 방지)
-        try {
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k) {
-                    try {
-                        const raw = localStorage.getItem(k);
-                        if (raw && (raw.startsWith('[') || raw.startsWith('{'))) {
-                            const parsed = JSON.parse(raw);
-                            if (Array.isArray(parsed)) {
-                                parsed.forEach(item => {
-                                    if (item && (item.amount != null || item.tx_date || item.date)) {
-                                        addCandidate(item);
-                                    }
-                                });
-                            }
-                        }
-                    } catch(e) {}
-                }
-            }
-        } catch(e) {}
 
         return found;
     },
@@ -123,9 +165,7 @@ const Store = {
             'mymoney_exchanges',
             'mony_usage_personal_exchanges',
             'mymoney_personal_exchanges',
-            'mony_usage_exchanges',
-            'exchanges',
-            'personal_exchanges'
+            'exchanges'
         ];
 
         keysToScan.forEach(k => {
@@ -137,27 +177,6 @@ const Store = {
                 }
             } catch(e) {}
         });
-
-        try {
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k) {
-                    try {
-                        const raw = localStorage.getItem(k);
-                        if (raw && raw.startsWith('[')) {
-                            const parsed = JSON.parse(raw);
-                            if (Array.isArray(parsed)) {
-                                parsed.forEach(item => {
-                                    if (item && (item.amount_vnd || item.amount_krw)) {
-                                        addCandidate(item);
-                                    }
-                                });
-                            }
-                        }
-                    } catch(e) {}
-                }
-            }
-        } catch(e) {}
 
         return found;
     },
@@ -176,53 +195,62 @@ const Store = {
     _setLocal(key, val) {
         try {
             localStorage.setItem('mymoney_' + key, JSON.stringify(val));
-            localStorage.setItem('mony_usage_personal_' + key, JSON.stringify(val));
         } catch(e) {}
     },
 
-    // ─── 로컬 데이터 ➔ Supabase 클라우드 DB 자동 이관 ───
+    // ─── 오프라인 데이터 ➔ Supabase 클라우드 DB 원샷 이관 & 임시 저장소 완벽 소멸 ───
     async _syncLocalToCloud() {
+        if (this._isSyncing) return;
+        this._isSyncing = true;
         try {
+            // DB 중복 자동 정리
+            await this._deduplicateDatabase();
+
             const localTx = this._scanAllLocalTransactions();
-            if (localTx.length === 0) return;
+            if (localTx.length > 0) {
+                const { data: dbTx } = await supabase.from('personal_transactions').select('id, amount, tx_date, type, memo');
+                const existingKeys = new Set((dbTx || []).map(t => `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).trim().toLowerCase()}_${String(t.memo || '').trim()}`));
+                const validCatIds = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+                const inFlightKeys = new Set();
 
-            // DB에 존재하는 데이터 확인
-            const { data: dbTx } = await supabase.from('personal_transactions').select('id, amount, tx_date, type, memo');
-            const existingKeys = new Set((dbTx || []).map(t => `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).trim().toLowerCase()}_${String(t.memo || '').trim()}`));
-            const validCatIds = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+                for (const item of localTx) {
+                    const amt = Utils.parseAmount(item.amount);
+                    const tType = String(item.type || 'expense').trim().toLowerCase();
+                    const dStr = Utils.formatDate(item.tx_date || Utils.today());
+                    const memoStr = String(item.memo || '').trim();
+                    const key = `${dStr}_${amt}_${tType}_${memoStr}`;
 
-            for (const item of localTx) {
-                const amt = Utils.parseAmount(item.amount);
-                const tType = String(item.type || 'expense').trim().toLowerCase();
-                const dStr = Utils.formatDate(item.tx_date || Utils.today());
-                const memoStr = String(item.memo || '').trim();
-                const key = `${dStr}_${amt}_${tType}_${memoStr}`;
-
-                if (amt > 0 && !existingKeys.has(key)) {
-                    let catId = Number(item.category_id);
-                    if (!validCatIds.has(catId)) {
-                        catId = tType === 'income' ? 10 : 1;
-                    }
-                    const payload = {
-                        tx_date: dStr,
-                        type: tType,
-                        category_id: catId,
-                        amount: amt,
-                        memo: memoStr || '이전 이관 데이터'
-                    };
-                    const { data, error } = await supabase.from('personal_transactions').insert(payload).select().single();
-                    if (!error && data) {
-                        existingKeys.add(key);
-                        console.log('✅ 로컬 수입/지출 데이터 Supabase 클라우드 이관 성공:', payload);
+                    if (amt > 0 && !existingKeys.has(key) && !inFlightKeys.has(key)) {
+                        inFlightKeys.add(key);
+                        let catId = Number(item.category_id);
+                        if (!validCatIds.has(catId)) {
+                            catId = tType === 'income' ? 10 : 1;
+                        }
+                        const payload = {
+                            tx_date: dStr,
+                            type: tType,
+                            category_id: catId,
+                            amount: amt,
+                            memo: memoStr || '이전 이관 데이터'
+                        };
+                        const { data, error } = await supabase.from('personal_transactions').insert(payload).select().single();
+                        if (!error && data) {
+                            existingKeys.add(key);
+                            console.log('✅ 오프라인 수입/지출 데이터 Supabase 클라우드 이관 성공:', payload);
+                        }
                     }
                 }
             }
-        } catch(e) {
-            console.warn('⚠️ 자동 동기화 시도 중 (Supabase 세팅 대기):', e.message);
-        }
 
-        // 환전 내역도 로컬 -> 클라우드 이관 시도
-        await this._syncLocalExchangesToCloud();
+            await this._syncLocalExchangesToCloud();
+
+            // 이관 완료 후 오프라인 임시 드래프트 완벽 청소
+            this._clearLocalDrafts();
+        } catch(e) {
+            console.warn('⚠️ 자동 동기화 예외 발생:', e.message);
+        } finally {
+            this._isSyncing = false;
+        }
     },
 
     async _syncLocalExchangesToCloud() {
@@ -232,6 +260,7 @@ const Store = {
 
             const { data: dbEx } = await supabase.from('exchange_transactions').select('id, amount_vnd, amount_krw, tx_date, tx_type');
             const existingKeys = new Set((dbEx || []).map(e => `${Utils.formatDate(e.tx_date)}_${Utils.parseAmount(e.amount_vnd)}_${Utils.parseAmount(e.amount_krw)}_${e.tx_type}`));
+            const inFlightKeys = new Set();
 
             for (const item of localEx) {
                 const vAmt = Utils.parseAmount(item.amount_vnd);
@@ -239,7 +268,8 @@ const Store = {
                 const dStr = Utils.formatDate(item.tx_date || Utils.today());
                 const key = `${dStr}_${vAmt}_${kAmt}_${item.tx_type || 'KRW_TO_VND'}`;
 
-                if ((vAmt > 0 || kAmt > 0) && !existingKeys.has(key)) {
+                if ((vAmt > 0 || kAmt > 0) && !existingKeys.has(key) && !inFlightKeys.has(key)) {
+                    inFlightKeys.add(key);
                     const payload = {
                         tx_date: dStr,
                         person_name: item.person_name || '본인',
@@ -252,7 +282,7 @@ const Store = {
                     const { data, error } = await supabase.from('exchange_transactions').insert(payload).select().single();
                     if (!error && data) {
                         existingKeys.add(key);
-                        console.log('✅ 로컬 환전 데이터 Supabase 이관 성공:', payload);
+                        console.log('✅ 오프라인 환전 데이터 Supabase 이관 성공:', payload);
                     }
                 }
             }
@@ -334,8 +364,8 @@ const Store = {
     // ─── 개인 가계부: 거래 ───
 
     async getTransactions(filters = {}) {
-        // 배경에서 로컬 ➔ 클라우드 이관 시도
-        this._syncLocalToCloud();
+        // 클라우드 동기화 수행
+        await this._syncLocalToCloud();
 
         const cats = await this.getCategories();
         const catMap = {};
@@ -353,31 +383,33 @@ const Store = {
             if (!error && data) dbTx = data;
         } catch(e) {}
 
-        // 로컬 탐색 데이터
-        const allScanned = this._scanAllLocalTransactions();
+        // 오프라인 드래프트 탐색
+        const localTx = this._scanAllLocalTransactions();
 
-        let filteredLocal = allScanned;
-        if (filters.startDate) {
-            const startClean = Utils.formatDate(filters.startDate);
-            filteredLocal = filteredLocal.filter(t => Utils.formatDate(t.tx_date || Utils.today()) >= startClean);
-        }
-        if (filters.endDate) {
-            const endClean = Utils.formatDate(filters.endDate);
-            filteredLocal = filteredLocal.filter(t => Utils.formatDate(t.tx_date || Utils.today()) <= endClean);
-        }
-        if (filters.type && filters.type.trim() !== '') {
-            const targetType = filters.type.trim().toLowerCase();
-            filteredLocal = filteredLocal.filter(t => String(t.type || 'expense').trim().toLowerCase() === targetType);
-        }
-        if (filters.category_id) {
-            filteredLocal = filteredLocal.filter(t => String(t.category_id) === String(filters.category_id));
-        }
-
-        // DB와 로컬 100% 통합 (DB 전송 완료된 로컬 항목 중복 제거)
+        // 엄격한 메모리 상 중복 정제
         const dbKeys = new Set(dbTx.map(t => `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).trim().toLowerCase()}_${String(t.memo || '').trim()}`));
         const txMap = {};
 
-        filteredLocal.forEach(t => {
+        // 1. DB 거래 항목 우선 추가
+        dbTx.forEach(t => {
+            if (t.id) {
+                const key = `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).trim().toLowerCase()}_${String(t.memo || '').trim()}`;
+                if (!txMap[String(t.id)]) {
+                    const cObj = t.personal_categories || catMap[String(t.category_id)] || (String(t.type).trim().toLowerCase() === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
+                    txMap[String(t.id)] = {
+                        ...t,
+                        tx_date: Utils.formatDate(t.tx_date),
+                        type: String(t.type || 'expense').trim().toLowerCase(),
+                        amount: Utils.parseAmount(t.amount),
+                        payment_method: t.payment_method || 'transfer',
+                        personal_categories: cObj
+                    };
+                }
+            }
+        });
+
+        // 2. 미동기화 오프라인 드래프트만 추가
+        localTx.forEach(t => {
             const dStr = Utils.formatDate(t.tx_date || Utils.today());
             const amt = Utils.parseAmount(t.amount);
             const tType = String(t.type || 'expense').trim().toLowerCase();
@@ -386,30 +418,18 @@ const Store = {
 
             if (!dbKeys.has(key)) {
                 const idKey = t.id ? String(t.id) : ('local_' + key);
-                const cObj = t.personal_categories || catMap[String(t.category_id)] || (tType === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
-                txMap[idKey] = {
-                    ...t,
-                    id: idKey,
-                    tx_date: dStr,
-                    type: tType,
-                    amount: amt,
-                    payment_method: t.payment_method || 'transfer',
-                    personal_categories: cObj
-                };
-            }
-        });
-
-        dbTx.forEach(t => {
-            if (t.id) {
-                const cObj = t.personal_categories || catMap[String(t.category_id)] || (String(t.type).trim().toLowerCase() === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
-                txMap[String(t.id)] = {
-                    ...t,
-                    tx_date: Utils.formatDate(t.tx_date),
-                    type: String(t.type || 'expense').trim().toLowerCase(),
-                    amount: Utils.parseAmount(t.amount),
-                    payment_method: t.payment_method || 'transfer',
-                    personal_categories: cObj
-                };
+                if (!txMap[idKey]) {
+                    const cObj = t.personal_categories || catMap[String(t.category_id)] || (tType === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
+                    txMap[idKey] = {
+                        ...t,
+                        id: idKey,
+                        tx_date: dStr,
+                        type: tType,
+                        amount: amt,
+                        payment_method: t.payment_method || 'transfer',
+                        personal_categories: cObj
+                    };
+                }
             }
         });
 
@@ -420,10 +440,15 @@ const Store = {
             result = result.filter(t => String(t.payment_method || 'transfer').trim() === pm);
         }
 
-        result.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
-
-        if (result.length > 0) {
-            this._setLocal('transactions', result);
+        const sortMode = filters.sort || 'date-desc';
+        if (sortMode === 'date-asc') {
+            result.sort((a, b) => new Date(a.tx_date) - new Date(b.tx_date) || new Date(a.created_at || 0) - new Date(b.created_at || 0));
+        } else if (sortMode === 'amount-desc') {
+            result.sort((a, b) => b.amount - a.amount || new Date(b.tx_date) - new Date(a.tx_date));
+        } else if (sortMode === 'amount-asc') {
+            result.sort((a, b) => a.amount - b.amount || new Date(b.tx_date) - new Date(a.tx_date));
+        } else {
+            result.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
         }
 
         if (filters.limit) result = result.slice(0, filters.limit);
@@ -465,23 +490,28 @@ const Store = {
         const cats = await this.getCategories();
         const cat = cats.find(c => String(c.id) === String(cleanTx.category_id)) || (cleanTx.type === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
 
-        const newTx = inserted ? {
-            ...inserted,
-            type: String(inserted.type || 'expense').trim().toLowerCase(),
-            amount: Utils.parseAmount(inserted.amount),
-            payment_method: cleanTx.payment_method
-        } : {
-            ...cleanTx,
-            id: 'tx_' + Date.now(),
-            created_at: new Date().toISOString(),
-            personal_categories: cat
-        };
-
-        const list = await this.getTransactions({});
-        list.unshift(newTx);
-        this._setLocal('transactions', list);
-
-        return newTx;
+        if (inserted) {
+            // 성공 시 DB 생성 항목 즉시 반환 (LocalStorage에 재주입하지 않음)
+            return {
+                ...inserted,
+                type: String(inserted.type || 'expense').trim().toLowerCase(),
+                amount: Utils.parseAmount(inserted.amount),
+                payment_method: cleanTx.payment_method,
+                personal_categories: cat
+            };
+        } else {
+            // 실패 시 오프라인 전용 임시 보관
+            const offlineTx = {
+                ...cleanTx,
+                id: 'local_' + Date.now(),
+                created_at: new Date().toISOString(),
+                personal_categories: cat
+            };
+            const list = this._scanAllLocalTransactions();
+            list.unshift(offlineTx);
+            this._setLocal('transactions', list);
+            return offlineTx;
+        }
     },
 
     async updateTransaction(id, updates) {
@@ -502,21 +532,13 @@ const Store = {
             await supabase.from('personal_transactions').update(dbUpdates).eq('id', id);
         } catch(e) {}
 
-        const list = await this.getTransactions({});
-        const idx = list.findIndex(t => String(t.id) === String(id));
-        if (idx !== -1) {
-            list[idx] = { ...list[idx], ...updates };
-            this._setLocal('transactions', list);
-            return list[idx];
-        }
-        return null;
+        return true;
     },
 
     async deleteTransactions(ids) {
         if (!Array.isArray(ids) || ids.length === 0) return true;
         const targetIds = new Set(ids.map(id => String(id)));
 
-        // Supabase DB 삭제
         try {
             const dbIds = Array.from(targetIds).filter(id => !id.startsWith('local_'));
             if (dbIds.length > 0) {
@@ -526,21 +548,7 @@ const Store = {
             console.error('Supabase 삭제 오류:', e);
         }
 
-        // 로컬 데이터 전수 정제 (모든 관련 키에서 완벽 제거)
-        const keysToClean = ['mymoney_transactions', 'mony_usage_personal_transactions'];
-        keysToClean.forEach(key => {
-            try {
-                const raw = localStorage.getItem(key);
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    if (Array.isArray(parsed)) {
-                        const updated = parsed.filter(t => t && !targetIds.has(String(t.id)));
-                        localStorage.setItem(key, JSON.stringify(updated));
-                    }
-                }
-            } catch(e) {}
-        });
-
+        this._clearLocalDrafts();
         return true;
     },
 
@@ -575,7 +583,8 @@ const Store = {
     // ─── 개인 환전 ───
 
     async getExchanges(filters = {}) {
-        this._syncLocalExchangesToCloud();
+        await this._syncLocalExchangesToCloud();
+
         let dbEx = [];
         try {
             let q = supabase.from('exchange_transactions').select('*').order('tx_date', { ascending: false });
@@ -587,14 +596,23 @@ const Store = {
             if (!error && data) dbEx = data;
         } catch(e) {}
 
-        let localEx = this._getLocal('exchanges', []);
-        if (filters.startDate) localEx = localEx.filter(e => Utils.formatDate(e.tx_date) >= Utils.formatDate(filters.startDate));
-        if (filters.endDate) localEx = localEx.filter(e => Utils.formatDate(e.tx_date) <= Utils.formatDate(filters.endDate));
-        if (filters.person_name) localEx = localEx.filter(e => e.person_name === filters.person_name);
-
+        const localEx = this._scanAllLocalExchanges();
+        const dbKeys = new Set(dbEx.map(e => `${Utils.formatDate(e.tx_date)}_${Utils.parseAmount(e.amount_vnd)}_${Utils.parseAmount(e.amount_krw)}_${e.tx_type}`));
         const exMap = {};
-        localEx.forEach(e => { if (e.id) exMap[String(e.id)] = e; });
+
         dbEx.forEach(e => { if (e.id) exMap[String(e.id)] = e; });
+
+        localEx.forEach(e => {
+            const dStr = Utils.formatDate(e.tx_date || Utils.today());
+            const vAmt = Utils.parseAmount(e.amount_vnd);
+            const kAmt = Utils.parseAmount(e.amount_krw);
+            const key = `${dStr}_${vAmt}_${kAmt}_${e.tx_type || 'KRW_TO_VND'}`;
+
+            if (!dbKeys.has(key)) {
+                const idKey = e.id ? String(e.id) : ('local_ex_' + key);
+                if (!exMap[idKey]) exMap[idKey] = { ...e, id: idKey };
+            }
+        });
 
         let result = Object.values(exMap);
         result.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date));
@@ -603,27 +621,38 @@ const Store = {
     },
 
     async addExchange(ex) {
+        const dbPayload = {
+            tx_date: Utils.formatDate(ex.tx_date),
+            person_name: ex.person_name || '본인',
+            tx_type: ex.tx_type || 'KRW_TO_VND',
+            exchange_rate: Number(ex.exchange_rate || 1),
+            amount_vnd: Utils.parseAmount(ex.amount_vnd),
+            amount_krw: Utils.parseAmount(ex.amount_krw),
+            memo: ex.memo || ''
+        };
+
         let inserted = null;
         try {
-            const { data, error } = await supabase.from('exchange_transactions').insert(ex).select().single();
+            const { data, error } = await supabase.from('exchange_transactions').insert(dbPayload).select().single();
             if (!error && data) inserted = data;
         } catch(e) {}
 
-        const newEx = inserted || { ...ex, id: 'ex_' + Date.now(), created_at: new Date().toISOString() };
-        const list = this._getLocal('exchanges', []);
-        list.unshift(newEx);
-        this._setLocal('exchanges', list);
-        return newEx;
+        if (inserted) {
+            return inserted;
+        } else {
+            const offlineEx = { ...ex, id: 'local_ex_' + Date.now(), created_at: new Date().toISOString() };
+            const list = this._scanAllLocalExchanges();
+            list.unshift(offlineEx);
+            this._setLocal('exchanges', list);
+            return offlineEx;
+        }
     },
 
     async deleteExchange(id) {
         try {
             await supabase.from('exchange_transactions').delete().eq('id', id);
         } catch(e) {}
-
-        let list = this._getLocal('exchanges', []);
-        list = list.filter(e => String(e.id) !== String(id));
-        this._setLocal('exchanges', list);
+        this._clearLocalDrafts();
         return true;
     },
 
