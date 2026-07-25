@@ -89,14 +89,15 @@
         });
     }
 
-    // ── Supabase 연결 확인 & 초기 페이지 로드 ──
+    // ── Supabase 연결 확인 & 전수 동기화 & 초기 페이지 로드 ──
     try {
         const { data, error } = await supabase.from('app_settings').select('key').limit(1);
         if (error) throw error;
         console.log('✅ Supabase 연결 성공');
+        // 부팅 직후 즉시 로컬 데이터 전수 동기화
+        await Store._syncLocalToCloud();
     } catch (err) {
-        console.warn('⚠️ Supabase 연결 실패:', err.message);
-        console.warn('   → js/config.js에서 SUPABASE_URL과 SUPABASE_ANON_KEY를 설정하세요.');
+        console.warn('⚠️ Supabase 연결 및 동기화 시도 중:', err.message);
     }
 
     // 대시보드 로드
