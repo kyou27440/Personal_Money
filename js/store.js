@@ -440,15 +440,27 @@ const Store = {
             result = result.filter(t => String(t.payment_method || 'transfer').trim() === pm);
         }
 
+        const getTime = (t) => {
+            if (t.created_at) {
+                const d = new Date(t.created_at);
+                if (!isNaN(d.getTime())) return d.getTime();
+            }
+            if (t.tx_date) {
+                const d = new Date(t.tx_date);
+                if (!isNaN(d.getTime())) return d.getTime();
+            }
+            return 0;
+        };
+
         const sortMode = filters.sort || 'date-desc';
         if (sortMode === 'date-asc') {
-            result.sort((a, b) => new Date(a.tx_date) - new Date(b.tx_date) || new Date(a.created_at || 0) - new Date(b.created_at || 0));
+            result.sort((a, b) => getTime(a) - getTime(b));
         } else if (sortMode === 'amount-desc') {
-            result.sort((a, b) => b.amount - a.amount || new Date(b.tx_date) - new Date(a.tx_date));
+            result.sort((a, b) => b.amount - a.amount || getTime(b) - getTime(a));
         } else if (sortMode === 'amount-asc') {
-            result.sort((a, b) => a.amount - b.amount || new Date(b.tx_date) - new Date(a.tx_date));
+            result.sort((a, b) => a.amount - b.amount || getTime(a) - getTime(b));
         } else {
-            result.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
+            result.sort((a, b) => getTime(b) - getTime(a));
         }
 
         if (filters.limit) result = result.slice(0, filters.limit);
