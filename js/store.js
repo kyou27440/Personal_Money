@@ -401,7 +401,7 @@ const Store = {
                         tx_date: Utils.formatDate(t.tx_date),
                         type: String(t.type || 'expense').trim().toLowerCase(),
                         amount: Utils.parseAmount(t.amount),
-                        payment_method: t.payment_method || 'transfer',
+                        payment_method: t.payment_method || (/(?:cash|현금)/i.test(t.memo || '') ? 'cash' : 'transfer'),
                         personal_categories: cObj
                     };
                 }
@@ -426,7 +426,7 @@ const Store = {
                         tx_date: dStr,
                         type: tType,
                         amount: amt,
-                        payment_method: t.payment_method || 'transfer',
+                        payment_method: t.payment_method || (/(?:cash|현금)/i.test(memoStr) ? 'cash' : 'transfer'),
                         personal_categories: cObj
                     };
                 }
@@ -482,12 +482,17 @@ const Store = {
             catId = cleanTx.type === 'income' ? 10 : 1;
         }
 
+        let memoText = cleanTx.memo || '';
+        if (cleanTx.payment_method === 'cash' && !/(?:cash|현금)/i.test(memoText)) {
+            memoText = (memoText ? memoText + ' ' : '') + '[현금]';
+        }
+
         const dbPayload = {
             tx_date: cleanTx.tx_date,
             type: cleanTx.type,
             category_id: catId,
             amount: cleanTx.amount,
-            memo: cleanTx.memo || ''
+            memo: memoText
         };
 
         let inserted = null;
@@ -590,6 +595,31 @@ const Store = {
             else if (tType === 'expense') balance -= amt;
         });
         return balance;
+    },
+
+    async getBalanceBreakdown() {
+        const txList = await this.getTransactions({});
+        const summary = {
+            cash: { income: 0, expense: 0, balance: 0 },
+            transfer: { income: 0, expense: 0, balance: 0 },
+            total: { income: 0, expense: 0, balance: 0 }
+        };
+        txList.forEach(t => {
+            const amt = Utils.parseAmount(t.amount);
+            const tType = String(t.type).trim().toLowerCase();
+            const pm = t.payment_method === 'cash' ? 'cash' : 'transfer';
+            if (tType === 'income') {
+                summary[pm].income += amt;
+                summary.total.income += amt;
+            } else if (tType === 'expense') {
+                summary[pm].expense += amt;
+                summary.total.expense += amt;
+            }
+        });
+        summary.cash.balance = summary.cash.income - summary.cash.expense;
+        summary.transfer.balance = summary.transfer.income - summary.transfer.expense;
+        summary.total.balance = summary.total.income - summary.total.expense;
+        return summary;
     },
 
     // ─── 개인 환전 ───
