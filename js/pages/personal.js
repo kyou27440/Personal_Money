@@ -182,6 +182,7 @@ const PersonalPage = {
         ];
 
         let stackedBarHtml = '';
+        let pillsHtml = '';
         let catGridHtml = '';
 
         catArray.forEach((item, index) => {
@@ -189,48 +190,71 @@ const PersonalPage = {
             const pct = totalExpense > 0 ? ((item.amount / totalExpense) * 100).toFixed(1) : 0;
             stackedBarHtml += `<div class="cat-stacked-segment" style="width:${pct}%;background:${color};" title="${item.name}: ${pct}% (${Utils.formatVND(item.amount)})"></div>`;
 
+            pillsHtml += `
+                <div class="cat-pill-badge" style="background:${color}18;color:${color};border-color:${color}33;">
+                    <span>${item.icon} ${Utils.escapeHtml(item.name)}</span>
+                    <strong style="margin-left:2px;">${pct}%</strong>
+                </div>
+            `;
+
             catGridHtml += `
                 <div class="cat-item-card">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                        <span style="font-size:0.88rem;font-weight:600;color:var(--text-primary);">${item.icon} ${Utils.escapeHtml(item.name)}</span>
-                        <span class="badge" style="background:${color}22;color:${color};font-weight:700;font-size:0.78rem;border:1px solid ${color}44;">${pct}%</span>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+                        <span style="font-size:0.82rem;font-weight:600;color:var(--text-primary);">${item.icon} ${Utils.escapeHtml(item.name)}</span>
+                        <span class="badge" style="background:${color}22;color:${color};font-weight:700;font-size:0.75rem;padding:1px 6px;">${pct}%</span>
                     </div>
-                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.85rem;margin-top:2px;">
-                        <span style="color:var(--text-muted);font-size:0.78rem;">${item.count}건</span>
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.8rem;">
+                        <span style="color:var(--text-muted);font-size:0.75rem;">${item.count}건</span>
                         <strong style="color:${color};font-weight:700;">${Utils.formatVND(item.amount)}</strong>
-                    </div>
-                    <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px;margin-top:6px;overflow:hidden;">
-                        <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;transition:width 0.4s ease;"></div>
                     </div>
                 </div>
             `;
         });
 
         container.innerHTML = `
-            <div class="cat-breakdown-card">
-                <div class="cat-breakdown-header">
-                    <div class="cat-breakdown-title">
-                        <span>📊</span>
-                        <span>기간 내 카테고리별 지출 & 점유율</span>
-                        <span class="badge badge-indigo" style="font-size:0.75rem;padding:2px 8px;font-weight:600;">카테고리 ${catArray.length}개</span>
+            <div class="cat-compact-bar-container">
+                <div class="cat-compact-header">
+                    <div class="cat-compact-left">
+                        <span class="cat-compact-label">📊 점유율</span>
+                        <div class="cat-compact-bar" title="지출 카테고리 비중">
+                            ${stackedBarHtml}
+                        </div>
                     </div>
-                    <div style="font-size:0.85rem;color:var(--text-secondary);">
-                        지출 합계: <strong class="text-rose" style="font-size:0.95rem;">${Utils.formatVND(totalExpense)}</strong>
-                        ${totalIncome > 0 ? `<span style="margin:0 8px;opacity:0.3;">|</span>수입 합계: <strong class="text-emerald" style="font-size:0.95rem;">${Utils.formatVND(totalIncome)}</strong>` : ''}
+                    <div class="cat-compact-right">
+                        <div class="cat-pills-row">
+                            ${pillsHtml}
+                        </div>
+                        <button id="btn-toggle-cat-detail" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:0.75rem;border-color:rgba(255,255,255,0.15)">
+                            🔍 상세
+                        </button>
                     </div>
                 </div>
-                ${catArray.length > 0 ? `
-                    <div class="cat-stacked-bar">
-                        ${stackedBarHtml}
+                <div id="cat-detail-panel" class="hidden mt-sm" style="border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:0.82rem;color:var(--text-secondary);">
+                        <span>카테고리별 상세 내역</span>
+                        <span>지출 합계: <strong class="text-rose">${Utils.formatVND(totalExpense)}</strong></span>
                     </div>
                     <div class="cat-grid">
                         ${catGridHtml}
                     </div>
-                ` : `
-                    <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.85rem;">지출 항목이 없습니다</div>
-                `}
+                </div>
             </div>
         `;
+
+        document.getElementById('btn-toggle-cat-detail')?.addEventListener('click', () => {
+            const panel = document.getElementById('cat-detail-panel');
+            const btn = document.getElementById('btn-toggle-cat-detail');
+            if (panel) {
+                const isHidden = panel.classList.contains('hidden');
+                if (isHidden) {
+                    panel.classList.remove('hidden');
+                    if (btn) btn.textContent = '▲ 접기';
+                } else {
+                    panel.classList.add('hidden');
+                    if (btn) btn.textContent = '🔍 상세';
+                }
+            }
+        });
     },
 
     async loadTransactions() {
