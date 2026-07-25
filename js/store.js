@@ -94,12 +94,11 @@ const Store = {
                 const key = `${dStr}_${amt}_${tType}`;
 
                 if (amt > 0 && !existingKeys.has(key)) {
-                    // Supabase로 이관
+                    // Supabase로 이관 (DB에 존재하는 컬럼만 포함)
                     const catId = item.category_id ? (isNaN(Number(item.category_id)) ? 1 : Number(item.category_id)) : (tType === 'income' ? 7 : 1);
                     const payload = {
                         tx_date: dStr,
                         type: tType,
-                        payment_method: item.payment_method || 'transfer',
                         category_id: catId,
                         amount: amt,
                         memo: item.memo || '이전 이관 데이터'
@@ -114,6 +113,43 @@ const Store = {
         } catch(e) {
             console.warn('⚠️ 자동 동기화 시도 중 (Supabase 세팅 대기):', e.message);
         }
+
+        // 환전 내역도 로컬 -> 클라우드 이관 시도
+        this._syncLocalExchangesToCloud();
+    },
+
+    async _syncLocalExchangesToCloud() {
+        try {
+            const localEx = this._getLocal('exchanges', []);
+            if (localEx.length === 0) return;
+
+            const { data: dbEx } = await supabase.from('exchange_transactions').select('id, amount_vnd, amount_krw, tx_date, tx_type');
+            const existingKeys = new Set((dbEx || []).map(e => `${e.tx_date}_${e.amount_vnd}_${e.amount_krw}_${e.tx_type}`));
+
+            for (const item of localEx) {
+                const vAmt = Utils.parseAmount(item.amount_vnd);
+                const kAmt = Utils.parseAmount(item.amount_krw);
+                const dStr = Utils.formatDate(item.tx_date || Utils.today());
+                const key = `${dStr}_${vAmt}_${kAmt}_${item.tx_type}`;
+
+                if (vAmt > 0 && !existingKeys.has(key)) {
+                    const payload = {
+                        tx_date: dStr,
+                        person_name: item.person_name || '본인',
+                        tx_type: item.tx_type || 'KRW_TO_VND',
+                        exchange_rate: Number(item.exchange_rate || 1),
+                        amount_vnd: vAmt,
+                        amount_krw: kAmt,
+                        memo: item.memo || ''
+                    };
+                    const { data, error } = await supabase.from('exchange_transactions').insert(payload).select().single();
+                    if (!error && data) {
+                        existingKeys.add(key);
+                        console.log('✅ 로컬 환전 데이터 Supabase 이관 성공:', payload);
+                    }
+                }
+            }
+        } catch(e) {}
     },
 
     // ─── 개인 가계부: 카테고리 ───
@@ -205,7 +241,6 @@ const Store = {
             if (filters.endDate) q = q.lte('tx_date', Utils.formatDate(filters.endDate));
             if (filters.type && filters.type.trim() !== '') q = q.eq('type', filters.type.trim().toLowerCase());
             if (filters.category_id) q = q.eq('category_id', filters.category_id);
-            if (filters.payment_method && filters.payment_method.trim() !== '') q = q.eq('payment_method', filters.payment_method.trim());
             if (filters.limit) q = q.limit(filters.limit);
             const { data, error } = await q;
             if (!error && data) dbTx = data;
@@ -229,9 +264,6 @@ const Store = {
         }
         if (filters.category_id) {
             filteredLocal = filteredLocal.filter(t => String(t.category_id) === String(filters.category_id));
-        }
-        if (filters.payment_method && filters.payment_method.trim() !== '') {
-            filteredLocal = filteredLocal.filter(t => String(t.payment_method || 'transfer').trim() === filters.payment_method.trim());
         }
 
         // DB와 로컬 100% 통합
@@ -265,6 +297,12 @@ const Store = {
         });
 
         let result = Object.values(txMap);
+
+        if (filters.payment_method && filters.payment_method.trim() !== '') {
+            const pm = filters.payment_method.trim();
+            result = result.filter(t => String(t.payment_method || 'transfer').trim() === pm);
+        }
+
         result.sort((a, b) => new Date(b.tx_date) - new Date(a.tx_date) || new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
         if (result.length > 0) {
@@ -284,11 +322,22 @@ const Store = {
             payment_method: tx.payment_method || 'transfer'
         };
 
+        const dbPayload = {
+            tx_date: cleanTx.tx_date,
+            type: cleanTx.type,
+            category_id: Number(cleanTx.category_id) || (cleanTx.type === 'income' ? 7 : 1),
+            amount: cleanTx.amount,
+            memo: cleanTx.memo || ''
+        };
+
         let inserted = null;
         try {
-            const { data, error } = await supabase.from('personal_transactions').insert(cleanTx).select('*, personal_categories(name, icon)').single();
+            const { data, error } = await supabase.from('personal_transactions').insert(dbPayload).select('*, personal_categories(name, icon)').single();
             if (!error && data) inserted = data;
-        } catch(e) {}
+            else if (error) console.error('Supabase Transaction Insert Error:', error);
+        } catch(e) {
+            console.error('Supabase Transaction Exception:', e);
+        }
 
         const cats = await this.getCategories();
         const cat = cats.find(c => String(c.id) === String(cleanTx.category_id)) || (cleanTx.type === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
@@ -296,7 +345,8 @@ const Store = {
         const newTx = inserted ? {
             ...inserted,
             type: String(inserted.type || 'expense').trim().toLowerCase(),
-            amount: Utils.parseAmount(inserted.amount)
+            amount: Utils.parseAmount(inserted.amount),
+            payment_method: cleanTx.payment_method
         } : {
             ...cleanTx,
             id: 'tx_' + Date.now(),
@@ -318,7 +368,15 @@ const Store = {
         updates.updated_at = new Date().toISOString();
 
         try {
-            await supabase.from('personal_transactions').update(updates).eq('id', id);
+            const dbUpdates = {};
+            if (updates.tx_date !== undefined) dbUpdates.tx_date = updates.tx_date;
+            if (updates.type !== undefined) dbUpdates.type = updates.type;
+            if (updates.category_id !== undefined) dbUpdates.category_id = Number(updates.category_id);
+            if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
+            if (updates.memo !== undefined) dbUpdates.memo = updates.memo;
+            dbUpdates.updated_at = updates.updated_at;
+
+            await supabase.from('personal_transactions').update(dbUpdates).eq('id', id);
         } catch(e) {}
 
         const list = await this.getTransactions({});
@@ -394,6 +452,7 @@ const Store = {
     // ─── 개인 환전 ───
 
     async getExchanges(filters = {}) {
+        this._syncLocalExchangesToCloud();
         let dbEx = [];
         try {
             let q = supabase.from('exchange_transactions').select('*').order('tx_date', { ascending: false });
