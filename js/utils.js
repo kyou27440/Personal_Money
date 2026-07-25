@@ -89,6 +89,32 @@ const Utils = {
         return `${mm}월 ${dd}일 (${days[d.getDay()]})`;
     },
 
+    /** 날짜+시간 한국식 표시: 07월 24일 (금) 14:35 */
+    formatDateTimeKR(dateStr, createdAtStr = null) {
+        if (!dateStr) return '';
+        const baseKR = Utils.formatDateKR(dateStr);
+        const timeSource = createdAtStr || (String(dateStr).includes('T') ? dateStr : null);
+        if (timeSource) {
+            try {
+                const d = new Date(timeSource);
+                if (!isNaN(d.getTime())) {
+                    const hh = String(d.getHours()).padStart(2, '0');
+                    const mm = String(d.getMinutes()).padStart(2, '0');
+                    return `${baseKR} ${hh}:${mm}`;
+                }
+            } catch(e) {}
+        }
+        return baseKR;
+    },
+
+    /** 현재 시각 HH:mm (로컬 시간 기준) */
+    currentTime() {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        return `${hh}:${mm}`;
+    },
+
     /** 오늘 날짜 YYYY-MM-DD (로컬 시간 기준) */
     today() {
         const now = new Date();
