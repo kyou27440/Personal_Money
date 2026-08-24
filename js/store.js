@@ -740,6 +740,85 @@ const Store = {
         return { vnd, krw };
     },
 
+    // ─── 게임회비 관리 ───
+
+    async addGameDuesIncome(item) {
+        const payload = {
+            tx_date: Utils.formatDate(item.tx_date),
+            member_name: (item.member_name || '').trim().toUpperCase(),
+            amount: Math.abs(Utils.parseAmount(item.amount)),
+            memo: (item.memo || '').trim()
+        };
+        if (item.created_at) payload.created_at = item.created_at;
+
+        try {
+            const { data, error } = await supabase.from('game_dues_income').insert(payload).select().single();
+            if (!error && data) return data;
+        } catch(e) {}
+
+        // LocalStorage fallback
+        const local = { ...payload, id: 'local_inc_' + Date.now(), created_at: payload.created_at || new Date().toISOString() };
+        const list = this._getLocal('mymoney_gamedues_income', []);
+        list.unshift(local);
+        this._setLocal('mymoney_gamedues_income', list);
+        return local;
+    },
+
+    async addGameDuesExpense(item) {
+        const payload = {
+            tx_date: Utils.formatDate(item.tx_date),
+            title: (item.title || '게임회비 지출').trim(),
+            amount: Math.abs(Utils.parseAmount(item.amount)),
+            memo: (item.memo || '').trim()
+        };
+        if (item.created_at) payload.created_at = item.created_at;
+
+        try {
+            const { data, error } = await supabase.from('game_dues_expense').insert(payload).select().single();
+            if (!error && data) return data;
+        } catch(e) {}
+
+        const local = { ...payload, id: 'local_exp_' + Date.now(), created_at: payload.created_at || new Date().toISOString() };
+        const list = this._getLocal('mymoney_gamedues_expense', []);
+        list.unshift(local);
+        this._setLocal('mymoney_gamedues_expense', list);
+        return local;
+    },
+
+    /** 개인 가계부 내역을 게임회비 관리로 이전 (가계부에서는 완전 분리/삭제) */
+    async convertPersonalTxToGameDues(tx) {
+        if (!tx) return false;
+
+        const isIncome = String(tx.type).trim().toLowerCase() === 'income';
+        const rawMemo = tx.memo || '';
+        const memberName = Utils.extractMemberName(rawMemo) || 'MEMBERS';
+
+        if (isIncome) {
+            await this.addGameDuesIncome({
+                tx_date: tx.tx_date,
+                member_name: memberName,
+                amount: tx.amount,
+                memo: rawMemo,
+                created_at: tx.created_at
+            });
+        } else {
+            await this.addGameDuesExpense({
+                tx_date: tx.tx_date,
+                title: rawMemo || '모임 지출',
+                amount: tx.amount,
+                memo: `[가계부에서 이전] ${rawMemo}`,
+                created_at: tx.created_at
+            });
+        }
+
+        // 개인 가계부에서 해당 거래 삭제 (자산/잔액에서 즉시 제외)
+        if (tx.id) {
+            await this.deleteTransaction(tx.id);
+        }
+
+        return true;
+    },
+
     // ─── 설정 ───
 
     async getSetting(key) {
