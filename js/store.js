@@ -502,6 +502,9 @@ const Store = {
             amount: cleanTx.amount,
             memo: memoText
         };
+        if (cleanTx.created_at) {
+            dbPayload.created_at = cleanTx.created_at;
+        }
 
         let inserted = null;
         try {
@@ -529,7 +532,7 @@ const Store = {
             const offlineTx = {
                 ...cleanTx,
                 id: 'local_' + Date.now(),
-                created_at: new Date().toISOString(),
+                created_at: cleanTx.created_at || new Date().toISOString(),
                 personal_categories: cat
             };
             const list = this._scanAllLocalTransactions();
@@ -548,6 +551,7 @@ const Store = {
         try {
             const dbUpdates = {};
             if (updates.tx_date !== undefined) dbUpdates.tx_date = updates.tx_date;
+            if (updates.created_at !== undefined) dbUpdates.created_at = updates.created_at;
             if (updates.type !== undefined) dbUpdates.type = updates.type;
             if (updates.category_id !== undefined) dbUpdates.category_id = Number(updates.category_id);
             if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
