@@ -176,6 +176,58 @@ const Utils = {
         return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     },
 
+    /** 적요/메모에서 멤버 이름(영문/한글) 추출 */
+    extractMemberName(memo) {
+        if (!memo) return '';
+        let s = String(memo).trim();
+
+        // 1. "KIM NAMSU TRANSFER/KIM NAMSU" 또는 ".../NAME" 형태
+        if (s.includes('/')) {
+            const parts = s.split('/');
+            const lastPart = parts[parts.length - 1].trim();
+            if (lastPart && /^[A-Za-z\s]+$/.test(lastPart)) {
+                return lastPart.toUpperCase();
+            }
+        }
+
+        // 2. "TRANSFER", "IB", "MB", "NAPAS", "TO", "FROM" 등 은행 키워드 제거
+        let cleaned = s.replace(/\b(TRANSFER|TRANSFERRING|IB|MB|NAPAS|CK|CHUYEN KHOAN|TIEN|QR|VIETQR|EBANK|ONLINE)\b/gi, ' ')
+                       .replace(/[\/\-_:,;\[\]\(\)]/g, ' ')
+                       .replace(/\s+/g, ' ')
+                       .trim();
+
+        // 3. 영문 대문자 이름 패턴 (2~4단어)
+        const engMatch = cleaned.match(/^[A-Za-z\s]{2,30}$/);
+        if (engMatch) {
+            return engMatch[0].trim().toUpperCase();
+        }
+
+        // 4. 한글 이름 패턴 (2~4글자)
+        const korMatch = cleaned.match(/[가-힣]{2,4}/);
+        if (korMatch) {
+            return korMatch[0].trim();
+        }
+
+        // 5. 기본: 정제된 문자열의 앞 20자
+        return cleaned.slice(0, 20).toUpperCase();
+    },
+
+    /** 메모가 사람 이름으로 된 게임회비 입금인지 판별 */
+    isLikelyGameDues(type, memo) {
+        if (type !== 'income') return false;
+        if (!memo) return false;
+
+        const rawUpper = String(memo).toUpperCase();
+        // 은행/금융 시스템 키워드는 무조건 제외
+        if (/(INTEREST|PAYMENT|CASHBACK|REFUND|REWARD|FEE|COMMISSION|TAX|SALARY|BONUS|DIVIDEND|이자|급여|월급|환급|캐시백|배당|수수료|세금|적금|예금)/i.test(rawUpper)) {
+            return false;
+        }
+
+        const name = Utils.extractMemberName(memo);
+        // 이름이 2자 이상 영문 또는 한글이면 게임회비로 간주
+        return Boolean(name && name.length >= 2 && !/^(TRANSFER|DEPOSIT|CREDIT|INCOME|DDA|VA|QR|VNPAY)$/i.test(name));
+    },
+
     /** 경과 시간 표시 */
     timeAgo(dateStr) {
         const now = new Date();
