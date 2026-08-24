@@ -744,7 +744,7 @@ const ImportPage = {
             if (finalAmt <= 0) { failCount++; continue; }
 
             try {
-                const createdAt = row.created_at || (finalDate ? `${finalDate}T${row.time || '12:00:00'}+07:00` : new Date().toISOString());
+                const createdAt = row.created_at || (row.time ? `${finalDate}T${row.time}+07:00` : null);
 
                 if (finalTarget === 'gamedues') {
                     // 🎮 게임회비로 분리 저장 (개인 가계부/자산에 미반영)
@@ -965,19 +965,11 @@ const ImportPage = {
 
         if (!dateStr) return null;
 
-        // 시간이 아예 없는 경우: 행 순서(Index) 기반으로 순차적인 타임스탬프 부여 (일괄 동일 시간 방지)
-        if (!timeStr) {
-            const baseMin = (12 * 60 + (ridx % 300)) % (24 * 60);
-            const hh = String(Math.floor(baseMin / 60)).padStart(2, '0');
-            const mm = String(baseMin % 60).padStart(2, '0');
-            const ss = String((ridx * 7) % 60).padStart(2, '0');
-            timeStr = `${hh}:${mm}:${ss}`;
-        }
-
+        // 시간이 엑셀 원본에 없으면 깨끗하게 빈값 유지 (있을 때만 시간 표현)
         return {
             date: dateStr,
-            time: timeStr,
-            fullISO: `${dateStr}T${timeStr}+07:00`
+            time: timeStr || '',
+            fullISO: timeStr ? `${dateStr}T${timeStr}+07:00` : null
         };
     },
 
