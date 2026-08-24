@@ -742,6 +742,66 @@ const Store = {
 
     // ─── 게임회비 관리 ───
 
+    async getGameDuesIncome(filters = {}) {
+        let dbList = [];
+        try {
+            let q = supabase.from('game_dues_income').select('*').order('tx_date', { ascending: false }).order('created_at', { ascending: false });
+            if (filters.startDate) q = q.gte('tx_date', Utils.formatDate(filters.startDate));
+            if (filters.endDate) q = q.lte('tx_date', Utils.formatDate(filters.endDate));
+            const { data, error } = await q;
+            if (!error && data) dbList = data;
+        } catch(e) {}
+
+        const localList = this._getLocal('mymoney_gamedues_income', []);
+        const dbIds = new Set(dbList.map(r => String(r.id)));
+        const combined = [...dbList];
+
+        // DB에 없는 로컬 데이터 병합
+        localList.forEach(r => {
+            if (!dbIds.has(String(r.id))) {
+                combined.push(r);
+            }
+        });
+
+        // 정렬: 1차 tx_date 내림차순, 2차 created_at/id 내림차순
+        combined.sort((a, b) => {
+            const dComp = String(b.tx_date).localeCompare(String(a.tx_date));
+            if (dComp !== 0) return dComp;
+            return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+        });
+
+        return combined;
+    },
+
+    async getGameDuesExpense(filters = {}) {
+        let dbList = [];
+        try {
+            let q = supabase.from('game_dues_expense').select('*').order('tx_date', { ascending: false }).order('created_at', { ascending: false });
+            if (filters.startDate) q = q.gte('tx_date', Utils.formatDate(filters.startDate));
+            if (filters.endDate) q = q.lte('tx_date', Utils.formatDate(filters.endDate));
+            const { data, error } = await q;
+            if (!error && data) dbList = data;
+        } catch(e) {}
+
+        const localList = this._getLocal('mymoney_gamedues_expense', []);
+        const dbIds = new Set(dbList.map(r => String(r.id)));
+        const combined = [...dbList];
+
+        localList.forEach(r => {
+            if (!dbIds.has(String(r.id))) {
+                combined.push(r);
+            }
+        });
+
+        combined.sort((a, b) => {
+            const dComp = String(b.tx_date).localeCompare(String(a.tx_date));
+            if (dComp !== 0) return dComp;
+            return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+        });
+
+        return combined;
+    },
+
     async addGameDuesIncome(item) {
         const payload = {
             tx_date: Utils.formatDate(item.tx_date),
@@ -751,16 +811,22 @@ const Store = {
         };
         if (item.created_at) payload.created_at = item.created_at;
 
-        try {
-            const { data, error } = await supabase.from('game_dues_income').insert(payload).select().single();
-            if (!error && data) return data;
-        } catch(e) {}
-
-        // LocalStorage fallback
+        // 로컬스토리지에 항상 즉시 저장 (유실 방지)
         const local = { ...payload, id: 'local_inc_' + Date.now(), created_at: payload.created_at || new Date().toISOString() };
         const list = this._getLocal('mymoney_gamedues_income', []);
         list.unshift(local);
         this._setLocal('mymoney_gamedues_income', list);
+
+        try {
+            const { data, error } = await supabase.from('game_dues_income').insert(payload).select().single();
+            if (!error && data) {
+                // Supabase 성공 시 로컬 아이템 ID 동기화
+                local.id = data.id;
+                this._setLocal('mymoney_gamedues_income', list);
+                return data;
+            }
+        } catch(e) {}
+
         return local;
     },
 
@@ -773,16 +839,37 @@ const Store = {
         };
         if (item.created_at) payload.created_at = item.created_at;
 
-        try {
-            const { data, error } = await supabase.from('game_dues_expense').insert(payload).select().single();
-            if (!error && data) return data;
-        } catch(e) {}
-
         const local = { ...payload, id: 'local_exp_' + Date.now(), created_at: payload.created_at || new Date().toISOString() };
         const list = this._getLocal('mymoney_gamedues_expense', []);
         list.unshift(local);
         this._setLocal('mymoney_gamedues_expense', list);
+
+        try {
+            const { data, error } = await supabase.from('game_dues_expense').insert(payload).select().single();
+            if (!error && data) {
+                local.id = data.id;
+                this._setLocal('mymoney_gamedues_expense', list);
+                return data;
+            }
+        } catch(e) {}
+
         return local;
+    },
+
+    async deleteGameDuesIncome(id) {
+        try { await supabase.from('game_dues_income').delete().eq('id', id); } catch(e) {}
+        let list = this._getLocal('mymoney_gamedues_income', []);
+        list = list.filter(r => String(r.id) !== String(id));
+        this._setLocal('mymoney_gamedues_income', list);
+        return true;
+    },
+
+    async deleteGameDuesExpense(id) {
+        try { await supabase.from('game_dues_expense').delete().eq('id', id); } catch(e) {}
+        let list = this._getLocal('mymoney_gamedues_expense', []);
+        list = list.filter(r => String(r.id) !== String(id));
+        this._setLocal('mymoney_gamedues_expense', list);
+        return true;
     },
 
     /** 개인 가계부 내역을 게임회비 관리로 이전 (가계부에서는 완전 분리/삭제) */
