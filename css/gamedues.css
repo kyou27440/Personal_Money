@@ -1,0 +1,389 @@
+/* ============================================
+   CSS/GAMEDUES.CSS — 게임회비 관리 페이지 스타일
+   ============================================ */
+
+/* ─── 요약 카드 그리드 ─── */
+.dues-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.dues-card {
+    background: var(--bg-card, #1e1e2e);
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+    border-radius: 16px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dues-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.dues-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 16px 16px 0 0;
+}
+
+.dues-card.income::before  { background: linear-gradient(90deg, #10b981, #34d399); }
+.dues-card.expense::before { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+.dues-card.balance::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+.dues-card.my-dues::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+
+.dues-card-icon {
+    font-size: 1.6rem;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.dues-card-label {
+    font-size: 0.78rem;
+    color: var(--text-muted, #888);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+}
+
+.dues-card-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    letter-spacing: -0.02em;
+}
+
+.dues-card.income  .dues-card-value { color: #34d399; }
+.dues-card.expense .dues-card-value { color: #fb7185; }
+.dues-card.balance .dues-card-value { color: #818cf8; }
+.dues-card.my-dues .dues-card-value { color: #fbbf24; }
+
+.dues-card-sub {
+    font-size: 0.76rem;
+    color: var(--text-muted, #888);
+    margin-top: 4px;
+}
+
+/* ─── 설정 배너 ─── */
+.dues-settings-bar {
+    background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.08));
+    border: 1px solid rgba(99,102,241,0.2);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.dues-settings-info {
+    font-size: 0.88rem;
+    color: var(--text-secondary, #bbb);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.dues-settings-info strong {
+    color: #818cf8;
+}
+
+.dues-settings-info .sep {
+    color: var(--text-muted, #555);
+}
+
+/* ─── 탭 ─── */
+.dues-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+    background: var(--bg-card, #1e1e2e);
+    border-radius: 12px;
+    padding: 5px;
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.dues-tab-btn {
+    flex: 1;
+    padding: 9px 14px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted, #888);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.dues-tab-btn:hover {
+    color: var(--text-primary, #fff);
+    background: rgba(255,255,255,0.05);
+}
+
+.dues-tab-btn.active {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    box-shadow: 0 3px 12px rgba(99,102,241,0.3);
+}
+
+/* ─── 탭 패널 ─── */
+.dues-panel {
+    display: none;
+}
+
+.dues-panel.active {
+    display: block;
+    animation: fadeSlideUp 0.2s ease;
+}
+
+@keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── 섹션 헤더 ─── */
+.dues-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.dues-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary, #fff);
+}
+
+/* ─── 필터 바 ─── */
+.dues-filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.dues-filter-bar input[type="date"],
+.dues-filter-bar input[type="text"],
+.dues-filter-bar select {
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border, rgba(255,255,255,0.1));
+    background: var(--bg-input, rgba(255,255,255,0.06));
+    color: var(--text-primary, #fff);
+    font-size: 0.84rem;
+    font-family: inherit;
+}
+
+/* ─── 테이블 ─── */
+.dues-table-wrap {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.dues-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.dues-table thead th {
+    background: rgba(30,30,50,0.9);
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-muted, #888);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+    white-space: nowrap;
+}
+
+.dues-table tbody tr {
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.15s;
+}
+
+.dues-table tbody tr:hover {
+    background: rgba(99,102,241,0.05);
+}
+
+.dues-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.dues-table td {
+    padding: 10px 14px;
+    color: var(--text-primary, #fff);
+    vertical-align: middle;
+}
+
+.dues-table td.amount-income {
+    color: #34d399;
+    font-weight: 700;
+    text-align: right;
+}
+
+.dues-table td.amount-expense {
+    color: #fb7185;
+    font-weight: 700;
+    text-align: right;
+}
+
+/* ─── 멤버 현황 카드 ─── */
+.member-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.member-card {
+    background: var(--bg-card, #1e1e2e);
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.member-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+.member-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.member-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.member-total {
+    font-size: 0.8rem;
+    color: #34d399;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.member-count {
+    font-size: 0.72rem;
+    color: var(--text-muted, #888);
+    margin-top: 1px;
+}
+
+/* ─── 빈 상태 ─── */
+.dues-empty {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text-muted, #888);
+}
+
+.dues-empty-icon {
+    font-size: 2.8rem;
+    display: block;
+    margin-bottom: 12px;
+}
+
+/* ─── 모달 내 내 회비 계산 안내 ─── */
+.my-dues-calc-box {
+    background: linear-gradient(135deg, rgba(251,191,36,0.1), rgba(245,158,11,0.08));
+    border: 1px solid rgba(251,191,36,0.2);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 16px;
+}
+
+.my-dues-calc-box .calc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    font-size: 0.87rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.my-dues-calc-box .calc-row:last-child {
+    border-bottom: none;
+    padding-top: 10px;
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.my-dues-calc-box .calc-label {
+    color: var(--text-muted, #888);
+}
+
+.my-dues-calc-box .calc-value {
+    color: var(--text-primary, #fff);
+    font-weight: 600;
+}
+
+.my-dues-calc-box .calc-value.highlight {
+    color: #fbbf24;
+    font-size: 1.1rem;
+}
+
+/* ─── 모바일 ─── */
+@media (max-width: 640px) {
+    .dues-summary-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .dues-card-value {
+        font-size: 1rem;
+    }
+
+    .dues-tabs {
+        flex-wrap: wrap;
+    }
+
+    .dues-tab-btn {
+        font-size: 0.78rem;
+        padding: 7px 10px;
+    }
+
+    .member-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
