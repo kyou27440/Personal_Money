@@ -483,14 +483,16 @@ const PersonalPage = {
 
             const isDues = Utils.isLikelyGameDues(tx.type, tx.memo);
             const memoStr = String(tx.memo || '').trim();
-            const isLongMemo = memoStr.length > 25 || /(?:VNPAY|scanning QR|TRANSFER|CK|IB)/i.test(memoStr);
+            const isLongMemo = memoStr.length > 25 || /(?:VNPAY|scanning QR|TRANSFER|CK|IB|VCB|BIDV|MBBANK|TECHCOM)/i.test(memoStr);
+            const isImported = isLongMemo || memoStr === '가져오기' || /(?:TRANSFER|CK|IB)/i.test(memoStr);
+            const dateDisplay = isImported ? Utils.formatDateKR(tx.tx_date) : Utils.formatDateTimeKR(tx.tx_date, tx.created_at);
 
             return `
             <tr ondblclick="PersonalPage.editTx('${tx.id}')" style="cursor:pointer" title="더블클릭하여 이 거래 전체 수정">
                 <td style="text-align:center" onclick="event.stopPropagation()">
                     <input type="checkbox" class="tx-cb" data-id="${tx.id}" data-amount="${amt}" data-date="${tx.tx_date}" style="cursor:pointer;width:16px;height:16px">
                 </td>
-                <td style="white-space:nowrap;font-weight:500">${Utils.formatDateTimeKR(tx.tx_date, tx.created_at)}</td>
+                <td style="white-space:nowrap;font-weight:500">${dateDisplay}</td>
                 <td>${typeBadge}</td>
                 <td><span class="badge ${methodClass}" style="font-size:0.75rem;padding:2px 8px">${methodLabel}</span></td>
                 <td onclick="event.stopPropagation()">
