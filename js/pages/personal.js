@@ -1211,7 +1211,7 @@ const PersonalPage = {
         const expenseCats = cats.filter(c => c.type === 'expense');
         const incomeCats = cats.filter(c => c.type === 'income');
 
-        const emojiList = ['🍚', '☕', '🍖', '⛳', '🚗', '🏠', '💊', '✈️', '🎮', '📱', '🛍️', '💰', '🎁', '🛒', '🍺', '⛽', '💇', '📚', '📌'];
+        const emojiList = ['🚬', '🍚', '☕', '🍖', '⛳', '🚗', '🏠', '💊', '✈️', '🎮', '📱', '🛍️', '💰', '🎁', '🛒', '🍺', '⛽', '💇', '📚', '📌'];
 
         const renderCatRows = (list) => list.map(c => `
             <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
