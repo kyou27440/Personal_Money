@@ -36,17 +36,22 @@ const PersonalPage = {
         </div>
 
         <!-- 게임회비 의심 거래 자동 감지 배너 -->
-        <div id="dues-suggestion-banner" class="hidden" style="background: linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.08)); border: 1px solid rgba(251,191,36,0.3); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div id="dues-suggestion-banner" class="hidden" style="background: linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.08)); border: 1px solid rgba(251,191,36,0.3); border-radius: 12px; padding: 10px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div style="display:flex;align-items:center;gap:10px;">
                 <span style="font-size:1.3rem;">🎮</span>
                 <div>
                     <div style="font-weight:700;font-size:0.9rem;color:#fbbf24;">게임회비로 보이는 멤버 입금 내역이 <span id="dues-detect-count">0</span>건 감지되었습니다!</div>
-                    <div style="font-size:0.78rem;color:var(--text-muted);">개인 가계부에서 제외하고 전용 [게임회비 관리]로 일괄 분리 이전할 수 있습니다.</div>
+                    <div style="font-size:0.78rem;color:var(--text-muted);">개인 가계부에서 제외하고 전용 [게임회비 관리]로 분리 이전하거나, 개인 입금으로 유지할 수 있습니다.</div>
                 </div>
             </div>
-            <button class="btn btn-sm" id="btn-bulk-move-dues" style="background:#fbbf24;color:#1e1e2e;font-weight:700;border:none;">
-                🎮 감지된 회비 일괄 이전하기
-            </button>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <button class="btn btn-ghost btn-sm" id="btn-ignore-all-dues" style="border-color:rgba(255,255,255,0.2);color:var(--text-muted);font-size:0.78rem;padding:4px 10px;" title="게임회비가 아님: 개인 입금으로 확정하고 이 배너를 닫습니다">
+                    ❌ 회비 아님 (개인입금 확정)
+                </button>
+                <button class="btn btn-sm" id="btn-bulk-move-dues" style="background:#fbbf24;color:#1e1e2e;font-weight:700;border:none;padding:4px 12px;font-size:0.82rem;">
+                    🎮 감지된 회비 일괄 이전하기
+                </button>
+            </div>
         </div>
 
         <!-- ⚡ 빠른 1초 직접 입력 바 -->
@@ -148,6 +153,7 @@ const PersonalPage = {
         document.getElementById('btn-bulk-edit-tx')?.addEventListener('click', () => this.bulkEditTx());
         document.getElementById('btn-select-zero-tx')?.addEventListener('click', () => this.selectZeroTx());
         document.getElementById('btn-bulk-move-dues')?.addEventListener('click', () => this.bulkMoveToGameDues());
+        document.getElementById('btn-ignore-all-dues')?.addEventListener('click', () => this.ignoreAllSuggestedDues());
 
         // ─── 날짜 기간 숏컷 버튼 ───
         document.getElementById('btn-filter-all-time')?.addEventListener('click', () => {
@@ -526,8 +532,9 @@ const PersonalPage = {
             else selectZeroBtn.classList.add('hidden');
         }
 
-        // 게임회비 의심 거래 감지 배너 업데이트
-        const duesTxList = txList.filter(t => Utils.isLikelyGameDues(t.type, t.memo));
+        // 게임회비 의심 거래 감지 배너 업데이트 (무시된 거래 제외)
+        const ignoredIds = this._getIgnoredDuesIds();
+        const duesTxList = txList.filter(t => Utils.isLikelyGameDues(t.type, t.memo) && !ignoredIds.includes(String(t.id)));
         const duesBanner = document.getElementById('dues-suggestion-banner');
         const duesCountEl = document.getElementById('dues-detect-count');
         if (duesBanner && duesCountEl) {
@@ -542,9 +549,45 @@ const PersonalPage = {
         this.updateBulkDeleteButton();
     },
 
-    /** 감지된 게임회비 거래 스마트 일괄 이전 모달 (아닌 항목 체크 해제 및 이름 수정 가능) */
+    _getIgnoredDuesIds() {
+        try {
+            const raw = localStorage.getItem('mymoney_ignored_dues_ids');
+            return raw ? JSON.parse(raw) : [];
+        } catch(e) {
+            return [];
+        }
+    },
+
+    _saveIgnoredDuesIds(ids) {
+        try {
+            const existing = this._getIgnoredDuesIds();
+            const merged = Array.from(new Set([...existing, ...ids.map(String)]));
+            localStorage.setItem('mymoney_ignored_dues_ids', JSON.stringify(merged));
+        } catch(e) {}
+    },
+
+    /** 감지된 모든 의심 거래를 '회비 아님 (개인 입금)'으로 확정하고 배너 닫기 */
+    ignoreAllSuggestedDues() {
+        const ignoredIds = this._getIgnoredDuesIds();
+        const duesTxList = (this.cachedTransactions || []).filter(t => Utils.isLikelyGameDues(t.type, t.memo) && !ignoredIds.includes(String(t.id)));
+        if (duesTxList.length === 0) {
+            document.getElementById('dues-suggestion-banner')?.classList.add('hidden');
+            return;
+        }
+
+        const ok = confirm(`감지된 ${duesTxList.length}건의 내역을 [게임회비가 아닌 순수 개인 입금]으로 확정할까요?\n(더 이상 이 배너가 뜨지 않습니다)`);
+        if (!ok) return;
+
+        this._saveIgnoredDuesIds(duesTxList.map(t => t.id));
+        document.getElementById('dues-suggestion-banner')?.classList.add('hidden');
+        Utils.toast('✅ 개인 입금으로 확정되었습니다. (감지 배너 닫힘)', 'success');
+        this.loadTransactions();
+    },
+
+    /** 감지된 게임회비 거래 스마트 일괄 이전 모달 (아닌 항목 체크 해제 시 자동 무시) */
     async bulkMoveToGameDues() {
-        const duesTxList = (this.cachedTransactions || []).filter(t => Utils.isLikelyGameDues(t.type, t.memo));
+        const ignoredIds = this._getIgnoredDuesIds();
+        const duesTxList = (this.cachedTransactions || []).filter(t => Utils.isLikelyGameDues(t.type, t.memo) && !ignoredIds.includes(String(t.id)));
         if (duesTxList.length === 0) {
             Utils.toast('이전할 게임회비 입금 내역이 없습니다.', 'info');
             return;
