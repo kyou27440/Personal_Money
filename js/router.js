@@ -32,6 +32,7 @@ const Router = {
             exchange: '💱 환전 관리',
             analytics: '📈 자산 현황 및 통계',
             import: '📂 엑셀·이미지 가져오기',
+            gamedues: '🎮 게임회비 관리',
             settings: '⚙️ 설정'
         };
         document.getElementById('page-title').textContent = titles[pageName] || pageName;
