@@ -906,6 +906,39 @@ const Store = {
         return true;
     },
 
+    /** 게임회비 항목을 다시 개인 가계부로 되돌리기 (게임회비에서는 삭제) */
+    async convertGameDuesToPersonalTx(item, isIncome = true) {
+        if (!item) return false;
+
+        const txDate = Utils.formatDate(item.tx_date || Utils.today());
+        const amt = Utils.parseAmount(item.amount);
+        const memo = isIncome
+            ? (item.memo ? `${item.member_name} / ${item.memo}` : `${item.member_name} 회비환원`)
+            : (item.memo || item.title || '게임회비 지출환원');
+
+        // 가계부에 등록
+        const added = await this.addTransaction({
+            tx_date: txDate,
+            created_at: item.created_at || new Date().toISOString(),
+            type: isIncome ? 'income' : 'expense',
+            category_id: isIncome ? 10 : 1, // 수입: 급여/수입(10), 지출: 식비(1)
+            payment_method: 'transfer',
+            amount: amt,
+            memo: memo
+        });
+
+        // 게임회비 DB에서 삭제
+        if (item.id) {
+            if (isIncome) {
+                await this.deleteGameDuesIncome(item.id);
+            } else {
+                await this.deleteGameDuesExpense(item.id);
+            }
+        }
+
+        return added;
+    },
+
     // ─── 설정 ───
 
     async getSetting(key) {
