@@ -89,22 +89,27 @@ const Utils = {
         return `${mm}월 ${dd}일 (${days[d.getDay()]})`;
     },
 
-    /** 날짜+시간 한국식 표시: 07월 24일 (금) 14:35 (시간 없으면 07월 24일 (금)만 표시) */
+    /** 날짜+시간 한국식 표시: 07월 24일 (금) 14:35 (시간 없거나 엑셀 가져오기 항목은 07월 24일 (금)만 표시) */
     formatDateTimeKR(dateStr, createdAtStr = null) {
         if (!dateStr) return '';
         const baseKR = Utils.formatDateKR(dateStr);
+        const formattedDate = Utils.formatDate(dateStr);
         
-        // createdAtStr 또는 dateStr에 시간 정보(T 또는 콜론)가 있는지 엄격 체크
+        // createdAtStr가 존재하고 시간 정보가 있을 때
         if (createdAtStr && typeof createdAtStr === 'string' && (createdAtStr.includes('T') || createdAtStr.includes(':'))) {
             try {
                 const d = new Date(createdAtStr);
                 if (!isNaN(d.getTime())) {
-                    const hh = d.getHours();
-                    const mm = d.getMinutes();
-                    const ss = d.getSeconds();
-                    // 00:00:00 (시간 미지정)이 아닌 실제 유효 시간일 때만 표시
-                    if (hh !== 0 || mm !== 0 || ss !== 0) {
-                        return `${baseKR} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+                    // 거래 날짜(tx_date)와 생성 시각(created_at)의 날짜가 일치할 때만 실제 거래 시간으로 인정!
+                    // (엑셀 등으로 나중에 일괄 가져온 과거 거래는 날짜가 다르므로 가짜 시간 표시 원천 차단)
+                    const createdDateStr = Utils.formatDate(d);
+                    if (createdDateStr === formattedDate) {
+                        const hh = d.getHours();
+                        const mm = d.getMinutes();
+                        const ss = d.getSeconds();
+                        if (hh !== 0 || mm !== 0 || ss !== 0) {
+                            return `${baseKR} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+                        }
                     }
                 }
             } catch(e) {}
