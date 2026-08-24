@@ -334,8 +334,8 @@ const ImportPage = {
             const expVal  = mapping.expense >= 0 ? row[mapping.expense] : 0;
             const memoVal = mapping.memo >= 0    ? row[mapping.memo]    : '';
 
-            const parsedDate = this._parseDate(dateVal);
-            if (!parsedDate) return;
+            const parsed = this._parseDateTime(dateVal, ridx);
+            if (!parsed || !parsed.date) return;
 
             const incAmt  = this._parseNumber(incVal);
             const expAmt  = this._parseNumber(expVal);
@@ -345,7 +345,9 @@ const ImportPage = {
             if (incAmt > 0) {
                 rawRows.push({
                     _idx: `excel_${ridx}_inc`,
-                    date: parsedDate,
+                    date: parsed.date,
+                    time: parsed.time,
+                    created_at: parsed.fullISO,
                     type: 'income',
                     amount: incAmt,
                     memo: String(memoVal || '').trim(),
@@ -356,8 +358,16 @@ const ImportPage = {
             if (expAmt > 0) {
                 rawRows.push({
                     _idx: `excel_${ridx}_exp`,
-                    date: parsedDate,
+                    date: parsed.date,
+                    time: parsed.time,
+                    created_at: parsed.fullISO,
                     type: 'expense',
+                    amount: expAmt,
+                    memo: String(memoVal || '').trim(),
+                    method: 'transfer',
+                    isDup: false,
+                });
+            }
                     amount: expAmt,
                     memo: String(memoVal || '').trim(),
                     method: 'transfer',
@@ -734,6 +744,8 @@ const ImportPage = {
             if (finalAmt <= 0) { failCount++; continue; }
 
             try {
+                const createdAt = row.created_at || (finalDate ? `${finalDate}T${row.time || '12:00:00'}+07:00` : new Date().toISOString());
+
                 if (finalTarget === 'gamedues') {
                     // 🎮 게임회비로 분리 저장 (개인 가계부/자산에 미반영)
                     if (finalType === 'income') {
@@ -742,14 +754,16 @@ const ImportPage = {
                             tx_date: finalDate,
                             member_name: memberName,
                             amount: finalAmt,
-                            memo: finalMemo
+                            memo: finalMemo,
+                            created_at: createdAt
                         });
                     } else {
                         await Store.addGameDuesExpense({
                             tx_date: finalDate,
                             title: finalMemo || '식사/모임 지출',
                             amount: finalAmt,
-                            memo: finalMemo
+                            memo: finalMemo,
+                            created_at: createdAt
                         });
                     }
                     gameDuesCount++;
@@ -761,6 +775,7 @@ const ImportPage = {
 
                     await Store.addTransaction({
                         tx_date: finalDate,
+                        created_at: createdAt,
                         type: finalType,
                         amount: finalAmt,
                         category_id: catId,
@@ -871,62 +886,104 @@ const ImportPage = {
         document.getElementById('import-preview-section')?.classList.remove('visible');
     },
 
-    _parseDate(val) {
+    _parseDateTime(val, ridx = 0) {
         if (!val && val !== 0) return null;
 
-        // Date 객체인 경우
+        let dateStr = null;
+        let timeStr = null;
+
+        // 1. Date 객체인 경우 (Excel 라이브러리가 파싱한 경우)
         if (val instanceof Date) {
             if (isNaN(val.getTime())) return null;
             const y = val.getFullYear();
             const m = String(val.getMonth() + 1).padStart(2, '0');
             const d = String(val.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
-        }
+            dateStr = `${y}-${m}-${d}`;
 
-        const s = String(val).trim();
-        if (!s) return null;
-
-        // 1. YYYY-MM-DD 또는 YYYY/MM/DD 또는 YYYY.MM.DD
-        let m1 = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
-        if (m1) {
-            return `${m1[1]}-${String(m1[2]).padStart(2, '0')}-${String(m1[3]).padStart(2, '0')}`;
-        }
-
-        // 2. DD/MM/YYYY 또는 DD-MM-YYYY 또는 DD.MM.YYYY (영미권/베트남 은행)
-        let m2 = s.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/);
-        if (m2) {
-            return `${m2[3]}-${String(m2[2]).padStart(2, '0')}-${String(m2[1]).padStart(2, '0')}`;
-        }
-
-        // 3. YYYYMMDD (8자리 숫자)
-        let m3 = s.match(/^(\d{4})(\d{2})(\d{2})/);
-        if (m3) {
-            return `${m3[1]}-${m3[2]}-${m3[3]}`;
-        }
-
-        // 4. Excel 일련번호 (예: 45500)
-        const num = parseFloat(s);
-        if (!isNaN(num) && num > 30000 && num < 70000) {
-            const d = new Date(Math.round((num - 25569) * 86400 * 1000));
-            if (!isNaN(d.getTime())) {
-                const y = d.getUTCFullYear();
-                const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-                const day = String(d.getUTCDate()).padStart(2, '0');
-                return `${y}-${m}-${day}`;
+            const hh = val.getHours();
+            const mm = val.getMinutes();
+            const ss = val.getSeconds();
+            // 자정이 아닌 실제 시간이 들어있는 경우
+            if (hh !== 0 || mm !== 0 || ss !== 0) {
+                timeStr = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
             }
         }
 
-        // 5. 문자열 내에 포함된 날짜 추출 시도
-        let m4 = s.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
-        if (m4) {
-            return `${m4[1]}-${String(m4[2]).padStart(2, '0')}-${String(m4[3]).padStart(2, '0')}`;
-        }
-        let m5 = s.match(/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/);
-        if (m5) {
-            return `${m5[3]}-${String(m5[2]).padStart(2, '0')}-${String(m5[1]).padStart(2, '0')}`;
+        const s = String(val).trim();
+
+        // 2. 문자열 내에서 시간 패턴(HH:mm:ss 또는 HH:mm) 추출
+        if (!timeStr && s) {
+            const timeMatch = s.match(/(?:T|\s)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+            if (timeMatch) {
+                const hh = String(timeMatch[1]).padStart(2, '0');
+                const mm = String(timeMatch[2]).padStart(2, '0');
+                const ss = String(timeMatch[3] || '00').padStart(2, '0');
+                timeStr = `${hh}:${mm}:${ss}`;
+            }
         }
 
-        return null;
+        // 3. 날짜 파싱
+        if (!dateStr && s) {
+            // YYYY-MM-DD 또는 YYYY/MM/DD 또는 YYYY.MM.DD
+            let m1 = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+            if (m1) {
+                dateStr = `${m1[1]}-${String(m1[2]).padStart(2, '0')}-${String(m1[3]).padStart(2, '0')}`;
+            }
+            // DD/MM/YYYY 또는 DD-MM-YYYY 또는 DD.MM.YYYY
+            if (!dateStr) {
+                let m2 = s.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/);
+                if (m2) {
+                    dateStr = `${m2[3]}-${String(m2[2]).padStart(2, '0')}-${String(m2[1]).padStart(2, '0')}`;
+                }
+            }
+            // YYYYMMDD
+            if (!dateStr) {
+                let m3 = s.match(/^(\d{4})(\d{2})(\d{2})/);
+                if (m3) {
+                    dateStr = `${m3[1]}-${m3[2]}-${m3[3]}`;
+                }
+            }
+            // Excel 일련번호 (소수점 포함 시 시간 계산)
+            if (!dateStr) {
+                const num = parseFloat(s);
+                if (!isNaN(num) && num > 30000 && num < 70000) {
+                    const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+                    if (!isNaN(d.getTime())) {
+                        dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+                        if (!timeStr) {
+                            const hh = d.getUTCHours();
+                            const mm = d.getUTCMinutes();
+                            const ss = d.getUTCSeconds();
+                            if (hh !== 0 || mm !== 0 || ss !== 0) {
+                                timeStr = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!dateStr) return null;
+
+        // 시간이 아예 없는 경우: 행 순서(Index) 기반으로 순차적인 타임스탬프 부여 (일괄 동일 시간 방지)
+        if (!timeStr) {
+            const baseMin = (12 * 60 + (ridx % 300)) % (24 * 60);
+            const hh = String(Math.floor(baseMin / 60)).padStart(2, '0');
+            const mm = String(baseMin % 60).padStart(2, '0');
+            const ss = String((ridx * 7) % 60).padStart(2, '0');
+            timeStr = `${hh}:${mm}:${ss}`;
+        }
+
+        return {
+            date: dateStr,
+            time: timeStr,
+            fullISO: `${dateStr}T${timeStr}+07:00`
+        };
+    },
+
+    _parseDate(val) {
+        const res = this._parseDateTime(val);
+        return res ? res.date : null;
     },
 
     _parseNumber(val) {
