@@ -113,86 +113,93 @@ const GameDuesPage = {
         const members = this._getMemberStats();
 
         return `
-        <div style="max-width:1000px;margin:0 auto;">
+        <div style="width:100%;margin:0 auto;">
 
-            <!-- 요약 카드 -->
-            <div class="dues-summary-grid">
-                <div class="dues-card income">
-                    <span class="dues-card-icon">💰</span>
-                    <div class="dues-card-label">총 입금 (멤버)</div>
-                    <div class="dues-card-value" id="dues-val-income">${Utils.formatVND(S.totalIncome)}</div>
-                    <div class="dues-card-sub">${this._incomeList.length}건</div>
+            <!-- 슬림 컴팩트 상단 요약 바 (세로폭 대폭 축소) -->
+            <div class="dues-compact-topbar">
+                <div class="dues-top-metrics">
+                    <div class="dues-metric-item">
+                        <span style="font-size:1.1rem;">💰</span>
+                        <div>
+                            <span class="dues-metric-label">총 입금:</span>
+                            <span class="dues-metric-val income" id="dues-val-income">${Utils.formatVND(S.totalIncome)}</span>
+                            <span style="font-size:0.75rem;color:var(--text-muted);margin-left:2px;">(${this._incomeList.length}건)</span>
+                        </div>
+                    </div>
+
+                    <div class="dues-metric-divider"></div>
+
+                    <div class="dues-metric-item">
+                        <span style="font-size:1.1rem;">💸</span>
+                        <div>
+                            <span class="dues-metric-label">총 지출:</span>
+                            <span class="dues-metric-val expense" id="dues-val-expense">${Utils.formatVND(S.totalExpense)}</span>
+                            <span style="font-size:0.75rem;color:var(--text-muted);margin-left:2px;">(${this._expenseList.length}건)</span>
+                        </div>
+                    </div>
+
+                    <div class="dues-metric-divider"></div>
+
+                    <div class="dues-metric-item">
+                        <span style="font-size:1.1rem;">⚖️</span>
+                        <div>
+                            <span class="dues-metric-label">현재 잔액:</span>
+                            <span class="dues-metric-val balance" id="dues-val-balance">${Utils.formatVND(S.balance)}</span>
+                        </div>
+                    </div>
+
+                    <div class="dues-metric-divider"></div>
+
+                    <div class="dues-metric-item">
+                        <span style="font-size:1.1rem;">👤</span>
+                        <div>
+                            <span class="dues-metric-label">1인당 회비:</span>
+                            <strong style="color:#fbbf24;font-size:0.92rem;" id="disp-per-person">${Utils.formatVND(S.perPerson)}</strong>
+                            <span style="font-size:0.75rem;color:var(--text-muted);margin-left:2px;">(총 ${S.totalMembers}명)</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="dues-card expense">
-                    <span class="dues-card-icon">💸</span>
-                    <div class="dues-card-label">총 지출</div>
-                    <div class="dues-card-value" id="dues-val-expense">${Utils.formatVND(S.totalExpense)}</div>
-                    <div class="dues-card-sub">${this._expenseList.length}건</div>
-                </div>
-                <div class="dues-card balance">
-                    <span class="dues-card-icon">💵</span>
-                    <div class="dues-card-label">현재 잔액</div>
-                    <div class="dues-card-value" id="dues-val-balance">${Utils.formatVND(S.balance)}</div>
-                    <div class="dues-card-sub">수령 - 지출</div>
-                </div>
-                <div class="dues-card my-dues">
-                    <span class="dues-card-icon">👤</span>
-                    <div class="dues-card-label">내 추가 납부액</div>
-                    <div class="dues-card-value" id="dues-val-myshortfall">${Utils.formatVND(S.myShortfall)}</div>
-                    <div class="dues-card-sub" id="dues-val-myshortfall-sub">${S.totalMembers > 0 ? `${S.totalMembers}명 × ${Utils.formatVND(S.perPerson)}` : '설정 필요'}</div>
+
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <button class="btn btn-ghost btn-sm" id="btn-dues-settings" style="padding:3px 8px;font-size:0.78rem;border-color:rgba(129,140,248,0.4);color:#818cf8;">
+                        ⚙️ 회비 기준 설정
+                    </button>
                 </div>
             </div>
 
-            <!-- 설정 바 -->
-            <div class="dues-settings-bar">
-                <div class="dues-settings-info">
-                    <span>⚙️ 회비 설정:</span>
-                    <span>
-                        1인당 <strong id="disp-per-person">${Utils.formatVND(S.perPerson)}</strong>
-                        <span class="sep">×</span>
-                        전체 <strong id="disp-members">${S.totalMembers}명</strong>
-                        <span class="sep">=</span>
-                        예상 총회비 <strong id="disp-expected">${Utils.formatVND(S.expectedTotal)}</strong>
-                    </span>
-                </div>
-                <button class="btn btn-ghost btn-sm" id="btn-dues-settings" style="border-color:#818cf8;color:#818cf8">
-                    ✏️ 회비 설정 변경
-                </button>
-            </div>
-
-            <!-- 탭 -->
+            <!-- 슬림 탭 -->
             <div class="dues-tabs">
-                <button class="dues-tab-btn active" id="tab-rounds" onclick="GameDuesPage.switchTab('rounds')">⛳ 📅 날짜별 모임 정산 <span id="badge-rounds" style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px"></span></button>
-                <button class="dues-tab-btn" id="tab-income"  onclick="GameDuesPage.switchTab('income')">📥 입금 내역 <span id="badge-income" style="background:rgba(52,211,153,0.2);color:#34d399;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${this._incomeList.length}</span></button>
-                <button class="dues-tab-btn" id="tab-expense" onclick="GameDuesPage.switchTab('expense')">📤 지출 내역 <span id="badge-expense" style="background:rgba(248,113,113,0.15);color:#fb7185;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${this._expenseList.length}</span></button>
-                <button class="dues-tab-btn" id="tab-members" onclick="GameDuesPage.switchTab('members')">👥 멤버 현황 <span id="badge-members" style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${members.length}명</span></button>
+                <button class="dues-tab-btn active" id="tab-rounds" onclick="GameDuesPage.switchTab('rounds')">⛳ 📅 날짜별 모임 정산 <span id="badge-rounds" style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:10px;padding:1px 7px;font-size:0.75rem;margin-left:4px"></span></button>
+                <button class="dues-tab-btn" id="tab-income"  onclick="GameDuesPage.switchTab('income')">📥 입금 내역 <span id="badge-income" style="background:rgba(52,211,153,0.2);color:#34d399;border-radius:10px;padding:1px 7px;font-size:0.75rem;margin-left:4px">${this._incomeList.length}</span></button>
+                <button class="dues-tab-btn" id="tab-expense" onclick="GameDuesPage.switchTab('expense')">📤 지출 내역 <span id="badge-expense" style="background:rgba(248,113,113,0.15);color:#fb7185;border-radius:10px;padding:1px 7px;font-size:0.75rem;margin-left:4px">${this._expenseList.length}</span></button>
+                <button class="dues-tab-btn" id="tab-members" onclick="GameDuesPage.switchTab('members')">👥 멤버 현황 <span id="badge-members" style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:10px;padding:1px 7px;font-size:0.75rem;margin-left:4px">${members.length}명</span></button>
             </div>
 
             <!-- ⛳ 1순위: 날짜별 모임 종합 정산 패널 -->
             <div class="dues-panel active" id="panel-rounds">
-                <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                    <div class="dues-section-title">⛳ 일자별 모임 정산 피드 (스크린비·회식비·납부현황)</div>
+                <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+                    <div class="dues-section-title" style="font-size:0.95rem;">⛳ 일자별 모임 정산 피드 (스크린비·회식비·납부현황)</div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        <button class="btn btn-ghost btn-sm" id="btn-sync-from-ledger-round" style="border-color:#fbbf24;color:#fbbf24;font-weight:700;">⚡ 가계부에서 회비 자동 가져오기</button>
-                        <button class="btn btn-primary btn-sm" onclick="GameDuesPage.openExpenseModal()">+ 지출 등록</button>
-                        <button class="btn btn-emerald btn-sm" onclick="GameDuesPage.openIncomeModal()" style="background:#10b981;color:#fff;">+ 입금 등록</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-sync-from-ledger-round" style="border-color:#fbbf24;color:#fbbf24;font-weight:700;padding:3px 9px;font-size:0.78rem;">⚡ 가계부에서 회비 자동 가져오기</button>
+                        <button class="btn btn-primary btn-sm" onclick="GameDuesPage.openExpenseModal()" style="padding:3px 9px;font-size:0.78rem;">+ 지출 등록</button>
+                        <button class="btn btn-emerald btn-sm" onclick="GameDuesPage.openIncomeModal()" style="background:#10b981;color:#fff;padding:3px 9px;font-size:0.78rem;">+ 입금 등록</button>
                     </div>
                 </div>
 
-                <div class="dues-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:16px;">
+                <div class="dues-filter-bar">
                     <div style="display:flex;gap:4px;">
-                        <button class="btn btn-ghost btn-sm" id="btn-round-all-time" style="padding:3px 8px;font-size:0.78rem;">🗓️ 전체</button>
-                        <button class="btn btn-ghost btn-sm" id="btn-round-this-month" style="padding:3px 8px;font-size:0.78rem;">이번 달</button>
-                        <button class="btn btn-ghost btn-sm" id="btn-round-last-month" style="padding:3px 8px;font-size:0.78rem;">지난 달</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-round-all-time" style="padding:2px 7px;font-size:0.76rem;">🗓️ 전체</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-round-this-month" style="padding:2px 7px;font-size:0.76rem;">이번 달</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-round-last-month" style="padding:2px 7px;font-size:0.76rem;">지난 달</button>
                     </div>
-                    <input type="date" id="round-filter-start" value="2020-01-01" style="width:130px;">
+                    <input type="date" id="round-filter-start" value="2020-01-01" style="width:125px;">
                     <span style="color:var(--text-muted)">~</span>
-                    <input type="date" id="round-filter-end" value="${Utils.today()}" style="width:130px;">
-                    <button class="btn btn-ghost btn-sm" id="btn-filter-round-apply">🔍 조회</button>
+                    <input type="date" id="round-filter-end" value="${Utils.today()}" style="width:125px;">
+                    <button class="btn btn-ghost btn-sm" id="btn-filter-round-apply" style="padding:2px 8px;font-size:0.76rem;">🔍 조회</button>
                 </div>
 
                 <!-- 날짜별 모임 정산 카드 목록 컨테이너 -->
-                <div id="rounds-cards-container" style="display:flex;flex-direction:column;gap:16px;">
+                <div id="rounds-cards-container" style="display:flex;flex-direction:column;gap:10px;">
                     <!-- 동적 렌더링 -->
                 </div>
             </div>
