@@ -19,92 +19,33 @@ const GameDuesPage = {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     async _loadIncome() {
-        try {
-            const { data, error } = await supabase
-                .from('game_dues_income')
-                .select('*')
-                .order('tx_date', { ascending: false })
-                .order('created_at', { ascending: false });
-            if (!error && data) {
-                this._saveLocal(this._KEY_INC, data);
-                return data;
-            }
-        } catch(e) {}
-        return this._loadLocal(this._KEY_INC, []);
+        return await Store.getGameDuesIncome();
     },
 
     async _loadExpense() {
-        try {
-            const { data, error } = await supabase
-                .from('game_dues_expense')
-                .select('*')
-                .order('tx_date', { ascending: false })
-                .order('created_at', { ascending: false });
-            if (!error && data) {
-                this._saveLocal(this._KEY_EXP, data);
-                return data;
-            }
-        } catch(e) {}
-        return this._loadLocal(this._KEY_EXP, []);
+        return await Store.getGameDuesExpense();
     },
 
     async _addIncome(item) {
-        const payload = {
-            tx_date: item.tx_date,
-            member_name: (item.member_name || '').trim().toUpperCase(),
-            amount: Math.abs(Utils.parseAmount(item.amount)),
-            memo: (item.memo || '').trim(),
-        };
-        try {
-            const { data, error } = await supabase
-                .from('game_dues_income')
-                .insert(payload).select().single();
-            if (!error && data) {
-                this._incomeList.unshift(data);
-                this._saveLocal(this._KEY_INC, this._incomeList);
-                return data;
-            }
-        } catch(e) {}
-        // offline fallback
-        const local = { ...payload, id: 'local_inc_' + Date.now(), created_at: new Date().toISOString() };
-        this._incomeList.unshift(local);
-        this._saveLocal(this._KEY_INC, this._incomeList);
-        return local;
+        const res = await Store.addGameDuesIncome(item);
+        this._incomeList = await Store.getGameDuesIncome();
+        return res;
     },
 
     async _deleteIncome(id) {
-        try { await supabase.from('game_dues_income').delete().eq('id', id); } catch(e) {}
-        this._incomeList = this._incomeList.filter(r => String(r.id) !== String(id));
-        this._saveLocal(this._KEY_INC, this._incomeList);
+        await Store.deleteGameDuesIncome(id);
+        this._incomeList = await Store.getGameDuesIncome();
     },
 
     async _addExpense(item) {
-        const payload = {
-            tx_date: item.tx_date,
-            title: (item.title || '').trim(),
-            amount: Math.abs(Utils.parseAmount(item.amount)),
-            memo: (item.memo || '').trim(),
-        };
-        try {
-            const { data, error } = await supabase
-                .from('game_dues_expense')
-                .insert(payload).select().single();
-            if (!error && data) {
-                this._expenseList.unshift(data);
-                this._saveLocal(this._KEY_EXP, this._expenseList);
-                return data;
-            }
-        } catch(e) {}
-        const local = { ...payload, id: 'local_exp_' + Date.now(), created_at: new Date().toISOString() };
-        this._expenseList.unshift(local);
-        this._saveLocal(this._KEY_EXP, this._expenseList);
-        return local;
+        const res = await Store.addGameDuesExpense(item);
+        this._expenseList = await Store.getGameDuesExpense();
+        return res;
     },
 
     async _deleteExpense(id) {
-        try { await supabase.from('game_dues_expense').delete().eq('id', id); } catch(e) {}
-        this._expenseList = this._expenseList.filter(r => String(r.id) !== String(id));
-        this._saveLocal(this._KEY_EXP, this._expenseList);
+        await Store.deleteGameDuesExpense(id);
+        this._expenseList = await Store.getGameDuesExpense();
     },
 
     _loadSettings() {
@@ -228,19 +169,25 @@ const GameDuesPage = {
 
             <!-- 입금 내역 패널 -->
             <div class="dues-panel active" id="panel-income">
-                <div class="dues-section-header">
+                <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                     <div class="dues-section-title">💰 게임회비 입금 내역</div>
-                    <div style="display:flex;gap:8px">
-                        <button class="btn btn-ghost btn-sm" id="btn-filter-income-apply">🔍 조회</button>
-                        <button class="btn btn-primary" id="btn-add-income">+ 입금 등록</button>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button class="btn btn-ghost btn-sm" id="btn-sync-from-ledger" style="border-color:#fbbf24;color:#fbbf24;font-weight:700;">⚡ 가계부에서 회비 자동 가져오기</button>
+                        <button class="btn btn-primary btn-sm" id="btn-add-income">+ 입금 등록</button>
                     </div>
                 </div>
 
-                <div class="dues-filter-bar">
-                    <input type="date" id="inc-filter-start" value="${Utils.monthStart()}">
+                <div class="dues-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                    <div style="display:flex;gap:4px;">
+                        <button class="btn btn-ghost btn-sm" id="btn-inc-all-time" style="padding:3px 8px;font-size:0.78rem;">🗓️ 전체</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-inc-this-month" style="padding:3px 8px;font-size:0.78rem;">이번 달</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-inc-last-month" style="padding:3px 8px;font-size:0.78rem;">지난 달</button>
+                    </div>
+                    <input type="date" id="inc-filter-start" value="2020-01-01" style="width:130px;">
                     <span style="color:var(--text-muted)">~</span>
-                    <input type="date" id="inc-filter-end" value="${Utils.today()}">
-                    <input type="text" id="inc-filter-name" placeholder="이름 검색" style="width:130px">
+                    <input type="date" id="inc-filter-end" value="${Utils.today()}" style="width:130px;">
+                    <input type="text" id="inc-filter-name" placeholder="이름 검색" style="width:110px;">
+                    <button class="btn btn-ghost btn-sm" id="btn-filter-income-apply">🔍 조회</button>
                 </div>
 
                 <div class="dues-table-wrap">
@@ -264,18 +211,23 @@ const GameDuesPage = {
 
             <!-- 지출 내역 패널 -->
             <div class="dues-panel" id="panel-expense">
-                <div class="dues-section-header">
+                <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                     <div class="dues-section-title">💸 게임회비 지출 내역</div>
-                    <div style="display:flex;gap:8px">
-                        <button class="btn btn-ghost btn-sm" id="btn-filter-expense-apply">🔍 조회</button>
-                        <button class="btn btn-primary" id="btn-add-expense">+ 지출 등록</button>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-primary btn-sm" id="btn-add-expense">+ 지출 등록</button>
                     </div>
                 </div>
 
-                <div class="dues-filter-bar">
-                    <input type="date" id="exp-filter-start" value="${Utils.monthStart()}">
+                <div class="dues-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                    <div style="display:flex;gap:4px;">
+                        <button class="btn btn-ghost btn-sm" id="btn-exp-all-time" style="padding:3px 8px;font-size:0.78rem;">🗓️ 전체</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-exp-this-month" style="padding:3px 8px;font-size:0.78rem;">이번 달</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-exp-last-month" style="padding:3px 8px;font-size:0.78rem;">지난 달</button>
+                    </div>
+                    <input type="date" id="exp-filter-start" value="2020-01-01" style="width:130px;">
                     <span style="color:var(--text-muted)">~</span>
-                    <input type="date" id="exp-filter-end" value="${Utils.today()}">
+                    <input type="date" id="exp-filter-end" value="${Utils.today()}" style="width:130px;">
+                    <button class="btn btn-ghost btn-sm" id="btn-filter-expense-apply">🔍 조회</button>
                 </div>
 
                 <div class="dues-table-wrap">
@@ -323,6 +275,91 @@ const GameDuesPage = {
         document.getElementById('btn-dues-settings')?.addEventListener('click', () => this.openSettingsModal());
         document.getElementById('btn-filter-income-apply')?.addEventListener('click', () => this.filterIncome());
         document.getElementById('btn-filter-expense-apply')?.addEventListener('click', () => this.filterExpense());
+        document.getElementById('btn-sync-from-ledger')?.addEventListener('click', () => this.syncFromLedger());
+
+        // 입금 기간 숏컷
+        document.getElementById('btn-inc-all-time')?.addEventListener('click', () => {
+            const s = document.getElementById('inc-filter-start');
+            const e = document.getElementById('inc-filter-end');
+            if (s) s.value = '2020-01-01';
+            if (e) e.value = Utils.today();
+            this.filterIncome();
+        });
+        document.getElementById('btn-inc-this-month')?.addEventListener('click', () => {
+            const s = document.getElementById('inc-filter-start');
+            const e = document.getElementById('inc-filter-end');
+            if (s) s.value = Utils.monthStart();
+            if (e) e.value = Utils.today();
+            this.filterIncome();
+        });
+        document.getElementById('btn-inc-last-month')?.addEventListener('click', () => {
+            const now = new Date();
+            const lastMonthFirst = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastMonthLast = new Date(now.getFullYear(), now.getMonth(), 0);
+            const s = document.getElementById('inc-filter-start');
+            const e = document.getElementById('inc-filter-end');
+            if (s) s.value = Utils.formatDate(lastMonthFirst);
+            if (e) e.value = Utils.formatDate(lastMonthLast);
+            this.filterIncome();
+        });
+
+        // 지출 기간 숏컷
+        document.getElementById('btn-exp-all-time')?.addEventListener('click', () => {
+            const s = document.getElementById('exp-filter-start');
+            const e = document.getElementById('exp-filter-end');
+            if (s) s.value = '2020-01-01';
+            if (e) e.value = Utils.today();
+            this.filterExpense();
+        });
+        document.getElementById('btn-exp-this-month')?.addEventListener('click', () => {
+            const s = document.getElementById('exp-filter-start');
+            const e = document.getElementById('exp-filter-end');
+            if (s) s.value = Utils.monthStart();
+            if (e) e.value = Utils.today();
+            this.filterExpense();
+        });
+        document.getElementById('btn-exp-last-month')?.addEventListener('click', () => {
+            const now = new Date();
+            const lastMonthFirst = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastMonthLast = new Date(now.getFullYear(), now.getMonth(), 0);
+            const s = document.getElementById('exp-filter-start');
+            const e = document.getElementById('exp-filter-end');
+            if (s) s.value = Utils.formatDate(lastMonthFirst);
+            if (e) e.value = Utils.formatDate(lastMonthLast);
+            this.filterExpense();
+        });
+    },
+
+    /** 가계부에 남아있는 회비 입금 거래 자동 스캔 & 일괄 가져오기 */
+    async syncFromLedger() {
+        const allTx = await Store.getTransactions({ limit: 1000 });
+        const duesTxList = allTx.filter(t => Utils.isLikelyGameDues(t.type, t.memo));
+
+        if (duesTxList.length === 0) {
+            Utils.toast('가계부에 이전할 새로운 게임회비 입금 내역이 없습니다.', 'info');
+            return;
+        }
+
+        const totalAmt = duesTxList.reduce((s, t) => s + Utils.parseAmount(t.amount), 0);
+        const ok = confirm(`개인 가계부에서 감지된 ${duesTxList.length}건(총 ${Utils.formatVND(totalAmt)})의 멤버 회비 입금을\n가계부에서 제외하고 게임회비 관리로 가져올까요?`);
+        if (!ok) return;
+
+        let successCount = 0;
+        for (const tx of duesTxList) {
+            const name = Utils.extractMemberName(tx.memo);
+            await Store.addGameDuesIncome({
+                tx_date: tx.tx_date,
+                member_name: name,
+                amount: tx.amount,
+                memo: tx.memo,
+                created_at: tx.created_at
+            });
+            if (tx.id) await Store.deleteTransaction(tx.id);
+            successCount++;
+        }
+
+        Utils.toast(`🎉 총 ${successCount}건의 게임회비를 가계부에서 가져왔습니다!`, 'success');
+        await this.refresh();
     },
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
