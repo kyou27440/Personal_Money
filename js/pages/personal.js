@@ -1334,29 +1334,42 @@ const PersonalPage = {
         }
     },
 
-    /** ⚖️ 실제 은행 잔액 기준 가계부 잔액 일괄 보정/맞춤 모달 */
+    /** ⚖️ 실제 신한은행 잔액 기준 가계부 [계좌 잔액]만 일괄 보정/맞춤 모달 (현금 제외) */
     async openBalanceAdjustmentModal() {
         const allTx = await Store.getTransactions({ limit: 5000 });
-        let totalInc = 0, totalExp = 0;
+        let transferInc = 0, transferExp = 0;
+        let cashInc = 0, cashExp = 0;
+
         allTx.forEach(t => {
             const amt = Utils.parseAmount(t.amount);
-            if (String(t.type).toLowerCase() === 'income') totalInc += amt;
-            else totalExp += amt;
+            const method = String(t.payment_method || 'transfer').toLowerCase();
+            const isInc = String(t.type).toLowerCase() === 'income';
+
+            if (method === 'cash') {
+                if (isInc) cashInc += amt;
+                else cashExp += amt;
+            } else {
+                // transfer (계좌이체/은행)
+                if (isInc) transferInc += amt;
+                else transferExp += amt;
+            }
         });
-        const currentLedgerBalance = totalInc - totalExp;
+
+        const currentTransferBalance = transferInc - transferExp;
+        const currentCashBalance = cashInc - cashExp;
         const defaultBankBalance = 33640797; // 신한은행 지불 가능 잔액 기본 추천
 
-        Modal.open('⚖️ 실제 은행 잔액으로 가계부 잔액 일치 맞춤 (보정)', `
+        Modal.open('⚖️ 신한은행 실제 잔액으로 [계좌 잔액] 맞춤 (현금 제외)', `
             <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:12px;padding:14px;margin-bottom:16px;">
                 <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;line-height:1.5;">
-                    신한은행 앱에 찍힌 <strong style="color:#fff">실제 계좌 잔액</strong>을 입력하시면,<br>
-                    가계부와의 차액을 자동으로 계산하여 <strong style="color:#34d399">잔액을 100% 완벽히 일치</strong>시켜 드립니다.
+                    💵 <strong>현금 잔액(${Utils.formatVND(currentCashBalance)})은 그대로 보존</strong>하고,<br>
+                    💳 <strong>신한은행 [계좌 잔액]만</strong> 실제 통장 잔고와 <strong style="color:#34d399">100% 완벽히 일치</strong>시킵니다.
                 </div>
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
                     <div style="background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">
-                        <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">📊 현재 가계부 장부 잔액</div>
-                        <div style="font-size:1.1rem;font-weight:800;color:#818cf8;margin-top:4px;">${Utils.formatVND(currentLedgerBalance)}</div>
+                        <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">💳 가계부 [계좌] 잔액</div>
+                        <div style="font-size:1.1rem;font-weight:800;color:#818cf8;margin-top:4px;">${Utils.formatVND(currentTransferBalance)}</div>
                     </div>
                     <div style="background:rgba(52,211,153,0.08);padding:10px;border-radius:8px;border:1px solid rgba(52,211,153,0.25);">
                         <div style="font-size:0.75rem;color:#34d399;font-weight:600;">🏦 신한은행 실제 잔액 (목표)</div>
@@ -1366,7 +1379,7 @@ const PersonalPage = {
 
                 <!-- 실시간 차액 계산 박스 -->
                 <div id="adj-diff-box" style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                    <span style="font-size:0.82rem;color:var(--text-muted);">보정할 차액:</span>
+                    <span style="font-size:0.82rem;color:var(--text-muted);">계좌 보정 차액:</span>
                     <span style="font-size:1rem;font-weight:800;" id="adj-diff-val">계산 중...</span>
                 </div>
 
@@ -1378,7 +1391,7 @@ const PersonalPage = {
         `, `
             <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
             <button class="btn btn-primary" id="btn-confirm-balance-adjust" style="background:linear-gradient(135deg,#10b981,#059669);font-weight:700;border:none;">
-                ✨ 은행 잔액으로 즉시 맞춤 실행
+                ✨ 계좌 잔액 일치 맞춤 실행
             </button>
         `);
 
@@ -1387,18 +1400,18 @@ const PersonalPage = {
 
         const updateDiff = () => {
             const targetAmt = Utils.parseAmount(targetInput?.value || '0');
-            const diff = targetAmt - currentLedgerBalance;
+            const diff = targetAmt - currentTransferBalance;
             const diffBox = document.getElementById('adj-diff-val');
             if (diffBox) {
                 if (diff > 0) {
                     diffBox.style.color = '#34d399';
-                    diffBox.innerHTML = `+${Utils.formatVND(diff)} (수입 보정 추가)`;
+                    diffBox.innerHTML = `+${Utils.formatVND(diff)} (계좌 수입 보정)`;
                 } else if (diff < 0) {
                     diffBox.style.color = '#fb7185';
-                    diffBox.innerHTML = `-${Utils.formatVND(Math.abs(diff))} (지출 털어내기 보정)`;
+                    diffBox.innerHTML = `-${Utils.formatVND(Math.abs(diff))} (계좌 지출 털어내기)`;
                 } else {
                     diffBox.style.color = '#818cf8';
-                    diffBox.innerHTML = `0 ₫ (이미 일치함)`;
+                    diffBox.innerHTML = `0 ₫ (이미 정확히 일치함)`;
                 }
             }
         };
@@ -1408,16 +1421,16 @@ const PersonalPage = {
 
         document.getElementById('btn-confirm-balance-adjust')?.addEventListener('click', async () => {
             const targetAmt = Utils.parseAmount(targetInput?.value || '0');
-            const diff = targetAmt - currentLedgerBalance;
+            const diff = targetAmt - currentTransferBalance;
             const adjDate = document.getElementById('adj-date')?.value || Utils.today();
 
             if (diff === 0) {
-                Utils.toast('현재 가계부 잔액과 은행 잔액이 이미 정확히 일치합니다!', 'info');
+                Utils.toast('가계부 계좌 잔액과 신한은행 잔액이 이미 정확히 일치합니다!', 'info');
                 Modal.close();
                 return;
             }
 
-            const ok = confirm(`현재 가계부 잔액(${Utils.formatVND(currentLedgerBalance)})을\n신한은행 실제 잔액 [${Utils.formatVND(targetAmt)}]에 맞추어\n차액 ${Utils.formatVND(Math.abs(diff))}을 보정 등록할까요?`);
+            const ok = confirm(`가계부 [계좌] 잔액(${Utils.formatVND(currentTransferBalance)})을\n신한은행 실제 잔액 [${Utils.formatVND(targetAmt)}]에 맞추어\n차액 ${Utils.formatVND(Math.abs(diff))}을 계좌(이체) 거래로 보정 등록할까요?\n(현금 잔액은 전혀 변동되지 않습니다)`);
             if (!ok) return;
 
             const isIncome = diff > 0;
@@ -1429,11 +1442,11 @@ const PersonalPage = {
                 type: isIncome ? 'income' : 'expense',
                 amount: Math.abs(diff),
                 category_id: cat ? cat.id : null,
-                payment_method: 'transfer',
-                memo: `[잔액 맞춤] 신한은행 계좌 실제 잔액 일치 보정 (${Utils.formatVND(targetAmt)})`
+                payment_method: 'transfer', // 💳 현금 제외, 오직 계좌로만 등록!
+                memo: `[계좌 잔액 맞춤] 신한은행 계좌 실제 잔액 일치 보정 (${Utils.formatVND(targetAmt)})`
             });
 
-            Utils.toast(`🎉 가계부 잔액이 ${Utils.formatVND(targetAmt)}로 완벽히 일치되었습니다!`, 'success');
+            Utils.toast(`🎉 계좌 잔액이 ${Utils.formatVND(targetAmt)}로 완벽히 일치되었습니다!`, 'success');
             Modal.close();
             await this.loadTransactions();
             await this.refreshSummary();
