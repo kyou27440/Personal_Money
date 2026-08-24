@@ -23,8 +23,8 @@ const DashboardPage = {
                 </div>
             </div>
             <div style="text-align:right;flex-shrink:0;">
-                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v3.2.0 (엑셀 실제 거래시간 정밀추출 완비)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-08-24 14:25 업데이트</div>
+                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v3.3.0 (게임회비 ➔ 가계부 양방향 복원 완비)</span>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-08-24 14:30 업데이트</div>
             </div>
         </div>
 
