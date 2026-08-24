@@ -181,6 +181,18 @@ const GameDuesPage = {
                 </div>
             </div>
 
+            <!-- 🔍 김상국(총무) 개인 가계부 지출 대조 현황 전용 배너 -->
+            <div id="dues-ledger-sync-banner" style="background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.06));border:1px solid rgba(129,140,248,0.25);border-radius:10px;padding:8px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <div style="display:flex;align-items:center;gap:8px;font-size:0.82rem;">
+                    <span style="font-size:1.1rem;">🔍</span>
+                    <div>
+                        <strong style="color:#818cf8;">[김상국 본인 가계부 지출 대조 현황]</strong>
+                        <span style="color:var(--text-secondary);margin-left:4px;" id="ledger-sync-stat-text">게임회비 지출과 개인 가계부 지출을 실시간 대조 중...</span>
+                    </div>
+                </div>
+                <div id="ledger-sync-action-btn-area"></div>
+            </div>
+
             <!-- 슬림 탭 -->
             <div class="dues-tabs">
                 <button class="dues-tab-btn active" id="tab-rounds" onclick="GameDuesPage.switchTab('rounds')">⛳ 📅 날짜별 모임 정산 <span id="badge-rounds" style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:10px;padding:1px 7px;font-size:0.75rem;margin-left:4px"></span></button>
