@@ -856,6 +856,46 @@ const Store = {
         return local;
     },
 
+    async updateGameDuesIncome(id, updates) {
+        const payload = {};
+        if (updates.tx_date !== undefined) payload.tx_date = Utils.formatDate(updates.tx_date);
+        if (updates.member_name !== undefined) payload.member_name = updates.member_name.trim().toUpperCase();
+        if (updates.amount !== undefined) payload.amount = Math.abs(Utils.parseAmount(updates.amount));
+        if (updates.memo !== undefined) payload.memo = updates.memo.trim();
+
+        try {
+            await supabase.from('game_dues_income').update(payload).eq('id', id);
+        } catch(e) {}
+
+        let list = this._getLocal('mymoney_gamedues_income', []);
+        const idx = list.findIndex(r => String(r.id) === String(id));
+        if (idx !== -1) {
+            list[idx] = { ...list[idx], ...payload };
+            this._setLocal('mymoney_gamedues_income', list);
+        }
+        return true;
+    },
+
+    async updateGameDuesExpense(id, updates) {
+        const payload = {};
+        if (updates.tx_date !== undefined) payload.tx_date = Utils.formatDate(updates.tx_date);
+        if (updates.title !== undefined) payload.title = updates.title.trim();
+        if (updates.amount !== undefined) payload.amount = Math.abs(Utils.parseAmount(updates.amount));
+        if (updates.memo !== undefined) payload.memo = updates.memo.trim();
+
+        try {
+            await supabase.from('game_dues_expense').update(payload).eq('id', id);
+        } catch(e) {}
+
+        let list = this._getLocal('mymoney_gamedues_expense', []);
+        const idx = list.findIndex(r => String(r.id) === String(id));
+        if (idx !== -1) {
+            list[idx] = { ...list[idx], ...payload };
+            this._setLocal('mymoney_gamedues_expense', list);
+        }
+        return true;
+    },
+
     async deleteGameDuesIncome(id) {
         try { await supabase.from('game_dues_income').delete().eq('id', id); } catch(e) {}
         let list = this._getLocal('mymoney_gamedues_income', []);
