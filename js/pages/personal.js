@@ -35,19 +35,64 @@ const PersonalPage = {
             </div>
         </div>
 
+        <!-- 게임회비 의심 거래 자동 감지 배너 -->
+        <div id="dues-suggestion-banner" class="hidden" style="background: linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.08)); border: 1px solid rgba(251,191,36,0.3); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:1.3rem;">🎮</span>
+                <div>
+                    <div style="font-weight:700;font-size:0.9rem;color:#fbbf24;">게임회비로 보이는 멤버 입금 내역이 <span id="dues-detect-count">0</span>건 감지되었습니다!</div>
+                    <div style="font-size:0.78rem;color:var(--text-muted);">개인 가계부에서 제외하고 전용 [게임회비 관리]로 일괄 분리 이전할 수 있습니다.</div>
+                </div>
+            </div>
+            <button class="btn btn-sm" id="btn-bulk-move-dues" style="background:#fbbf24;color:#1e1e2e;font-weight:700;border:none;">
+                🎮 감지된 회비 일괄 이전하기
+            </button>
+        </div>
+
+        <!-- ⚡ 빠른 1초 직접 입력 바 -->
+        <div class="card mb-lg" style="background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(16,185,129,0.06)); border: 1px solid rgba(99,102,241,0.25); border-radius: 12px; padding: 14px 18px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <div style="font-weight:700;font-size:0.92rem;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
+                    <span>✍️ 가계부 직접 입력</span>
+                    <span style="font-size:0.75rem;font-weight:500;color:var(--text-muted);">모달 없이 바로 빠르게 등록</span>
+                </div>
+                <button class="btn btn-primary btn-sm" id="btn-add-tx" style="padding:4px 12px;font-size:0.82rem;">+ 상세 입력 모달</button>
+            </div>
+            <div style="display:grid;grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) 100px;gap:8px;align-items:center;">
+                <input type="date" id="quick-date" value="${Utils.today()}" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;">
+                <select id="quick-type" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;">
+                    <option value="expense">📉 지출</option>
+                    <option value="income">📈 수입</option>
+                </select>
+                <select id="quick-method" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;">
+                    <option value="transfer">💳 계좌이체</option>
+                    <option value="cash">💵 현금</option>
+                </select>
+                <select id="quick-category" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;"></select>
+                <input type="text" id="quick-amount" placeholder="금액 (VND)" inputmode="numeric" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;font-weight:700;">
+                <input type="text" id="quick-memo" placeholder="메모 (선택)" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;">
+                <button class="btn btn-primary btn-sm" id="btn-quick-submit" style="height:35px;font-weight:700;">+ 바로 추가</button>
+            </div>
+        </div>
+
         <div class="section-header">
-            <div class="flex items-center gap-sm">
+            <div class="flex items-center gap-sm flex-wrap">
                 <span class="section-title">거래 내역</span>
                 <button class="btn btn-danger btn-sm hidden" id="btn-bulk-delete-tx">🗑️ 선택 삭제 (<span id="selected-tx-count">0</span>개)</button>
+                <button class="btn btn-ghost btn-sm hidden" id="btn-bulk-edit-tx" style="border-color:#818cf8;color:#818cf8;">✏️ 선택 일괄 수정</button>
                 <button class="btn btn-ghost btn-sm hidden" id="btn-select-zero-tx" style="border-color:var(--accent-amber);color:var(--accent-amber)">⚠️ 0원 내역 선택</button>
             </div>
             <div class="flex gap-sm">
-                <button class="btn btn-primary" id="btn-add-tx">+ 입력</button>
                 <button class="btn btn-ghost" id="btn-manage-cat">카테고리 관리</button>
             </div>
         </div>
 
-        <div class="filter-bar mb-lg">
+        <div class="filter-bar mb-lg" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+            <div style="display:flex;gap:4px;">
+                <button class="btn btn-ghost btn-sm" id="btn-filter-all-time" style="padding:4px 8px;font-size:0.78rem;">🗓️ 전체 기간</button>
+                <button class="btn btn-ghost btn-sm" id="btn-filter-this-month" style="padding:4px 8px;font-size:0.78rem;">이번 달</button>
+                <button class="btn btn-ghost btn-sm" id="btn-filter-last-month" style="padding:4px 8px;font-size:0.78rem;">지난 달</button>
+            </div>
             <input type="date" id="filter-start" value="${Utils.monthStart()}">
             <span class="text-muted">~</span>
             <input type="date" id="filter-end" value="${Utils.today()}">
@@ -67,7 +112,7 @@ const PersonalPage = {
                 <option value="amount-desc">💰 금액 높은순</option>
                 <option value="amount-asc">💰 금액 낮은순</option>
             </select>
-            <button class="btn btn-ghost btn-sm" id="btn-filter-tx">조회</button>
+            <button class="btn btn-ghost btn-sm" id="btn-filter-tx">🔍 조회</button>
         </div>
 
         <div id="category-breakdown-container"></div>
@@ -84,7 +129,7 @@ const PersonalPage = {
                     <th>카테고리</th>
                     <th id="th-sort-amount" style="text-align:right;cursor:pointer;user-select:none" title="금액 정렬 변경">금액 (VND) <span id="sort-icon-amount">↕️</span></th>
                     <th>메모</th>
-                    <th>작업</th>
+                    <th>작업 (더블클릭 수정)</th>
                 </tr></thead>
                 <tbody id="tx-table-body">
                     <tr><td colspan="8" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
@@ -99,7 +144,103 @@ const PersonalPage = {
         document.getElementById('btn-filter-tx')?.addEventListener('click', () => this.loadTransactions());
         document.getElementById('filter-sort')?.addEventListener('change', () => this.loadTransactions());
         document.getElementById('btn-bulk-delete-tx')?.addEventListener('click', () => this.bulkDeleteTx());
+        document.getElementById('btn-bulk-edit-tx')?.addEventListener('click', () => this.bulkEditTx());
         document.getElementById('btn-select-zero-tx')?.addEventListener('click', () => this.selectZeroTx());
+        document.getElementById('btn-bulk-move-dues')?.addEventListener('click', () => this.bulkMoveToGameDues());
+
+        // ─── 날짜 기간 숏컷 버튼 ───
+        document.getElementById('btn-filter-all-time')?.addEventListener('click', () => {
+            const start = document.getElementById('filter-start');
+            const end = document.getElementById('filter-end');
+            if (start) start.value = '2020-01-01';
+            if (end) end.value = Utils.today();
+            this.loadTransactions();
+        });
+
+        document.getElementById('btn-filter-this-month')?.addEventListener('click', () => {
+            const start = document.getElementById('filter-start');
+            const end = document.getElementById('filter-end');
+            if (start) start.value = Utils.monthStart();
+            if (end) end.value = Utils.today();
+            this.loadTransactions();
+        });
+
+        document.getElementById('btn-filter-last-month')?.addEventListener('click', () => {
+            const now = new Date();
+            const lastMonthFirst = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastMonthLast = new Date(now.getFullYear(), now.getMonth(), 0);
+            const start = document.getElementById('filter-start');
+            const end = document.getElementById('filter-end');
+            if (start) start.value = Utils.formatDate(lastMonthFirst);
+            if (end) end.value = Utils.formatDate(lastMonthLast);
+            this.loadTransactions();
+        });
+
+        // ─── ⚡ 빠른 1초 수기 입력 폼 바인딩 ───
+        const quickAmt = document.getElementById('quick-amount');
+        if (quickAmt) Utils.bindAmountInputFormatter(quickAmt);
+
+        const quickType = document.getElementById('quick-type');
+        const quickCat = document.getElementById('quick-category');
+        const cats = await Store.getCategories();
+
+        const updateQuickCats = () => {
+            const t = String(quickType?.value || 'expense').trim().toLowerCase();
+            const filtered = cats.filter(c => String(c.type).trim().toLowerCase() === t);
+            if (quickCat) {
+                quickCat.innerHTML = filtered.map(c => `<option value="${c.id}">${c.icon || '📌'} ${c.name}</option>`).join('');
+            }
+        };
+
+        if (quickType) {
+            quickType.addEventListener('change', updateQuickCats);
+            updateQuickCats();
+        }
+
+        document.getElementById('btn-quick-submit')?.addEventListener('click', async () => {
+            const date = document.getElementById('quick-date')?.value || Utils.today();
+            const type = document.getElementById('quick-type')?.value || 'expense';
+            const method = document.getElementById('quick-method')?.value || 'transfer';
+            const catId = document.getElementById('quick-category')?.value;
+            const amtStr = document.getElementById('quick-amount')?.value;
+            const memo = (document.getElementById('quick-memo')?.value || '').trim();
+            const amt = Utils.parseAmount(amtStr);
+
+            if (!amt || amt <= 0) {
+                Utils.toast('금액을 입력해주세요', 'error');
+                document.getElementById('quick-amount')?.focus();
+                return;
+            }
+
+            const btn = document.getElementById('btn-quick-submit');
+            if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+
+            const res = await Store.addTransaction({
+                tx_date: date,
+                type: type,
+                category_id: Number(catId) || (type === 'income' ? 10 : 1),
+                payment_method: method,
+                amount: amt,
+                memo: memo
+            });
+
+            if (btn) { btn.disabled = false; btn.textContent = '+ 바로 추가'; }
+
+            if (res) {
+                Utils.toast(`✅ ${Utils.formatVND(amt)} 등록 완료!`, 'success');
+                if (document.getElementById('quick-amount')) document.getElementById('quick-amount').value = '';
+                if (document.getElementById('quick-memo')) document.getElementById('quick-memo').value = '';
+
+                // 현재 필터 범위에 포함되도록 조정
+                const filterStart = document.getElementById('filter-start');
+                const filterEnd = document.getElementById('filter-end');
+                if (filterStart && filterStart.value > date) filterStart.value = date;
+                if (filterEnd && filterEnd.value < date) filterEnd.value = date;
+
+                await this.loadTransactions();
+                await this.refreshSummary();
+            }
+        });
 
         document.getElementById('th-sort-date')?.addEventListener('click', () => {
             const sortEl = document.getElementById('filter-sort');
@@ -326,6 +467,7 @@ const PersonalPage = {
         }
 
         let hasZeroTx = false;
+        this.cachedTransactions = txList;
         tbody.innerHTML = txList.map(tx => {
             const isIncome = String(tx.type).trim().toLowerCase() === 'income';
             const methodLabel = tx.payment_method === 'cash' ? '💵 현금' : '💳 계좌이체';
@@ -336,9 +478,11 @@ const PersonalPage = {
             const amt = Utils.parseAmount(tx.amount);
             if (amt === 0) hasZeroTx = true;
 
+            const isDues = Utils.isLikelyGameDues(tx.type, tx.memo);
+
             return `
-            <tr>
-                <td style="text-align:center">
+            <tr ondblclick="PersonalPage.editTx('${tx.id}')" style="cursor:pointer" title="더블클릭하여 이 거래 수정">
+                <td style="text-align:center" onclick="event.stopPropagation()">
                     <input type="checkbox" class="tx-cb" data-id="${tx.id}" data-amount="${amt}" style="cursor:pointer;width:16px;height:16px">
                 </td>
                 <td style="white-space:nowrap;font-weight:500">${Utils.formatDateTimeKR(tx.tx_date, tx.created_at)}</td>
@@ -346,9 +490,13 @@ const PersonalPage = {
                 <td><span class="badge ${methodClass}" style="font-size:0.75rem;padding:2px 8px">${methodLabel}</span></td>
                 <td>${tx.personal_categories?.icon || '💰'} ${Utils.escapeHtml(tx.personal_categories?.name || '기타')}</td>
                 <td style="text-align:right;font-weight:600" class="${colorClass}">${sign}${Utils.formatVND(tx.amount)}</td>
-                <td class="text-secondary">${Utils.escapeHtml(tx.memo || '')}</td>
-                <td>
+                <td class="text-secondary">
+                    ${Utils.escapeHtml(tx.memo || '')}
+                    ${isDues ? `<button class="btn btn-ghost btn-sm" onclick="PersonalPage.moveToGameDues('${tx.id}')" style="padding:1px 6px;font-size:0.72rem;margin-left:6px;border-color:rgba(251,191,36,0.5);color:#fbbf24;" title="가계부에서 분리하여 게임회비로 이전">🎮 회비로 이전</button>` : ''}
+                </td>
+                <td style="white-space:nowrap">
                     <button class="btn btn-icon btn-sm" onclick="PersonalPage.editTx('${tx.id}')" title="수정">✏️</button>
+                    <button class="btn btn-icon btn-sm" onclick="PersonalPage.moveToGameDues('${tx.id}')" title="게임회비로 분리 이전" style="color:#fbbf24">🎮</button>
                     <button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteTx('${tx.id}')" title="삭제">🗑️</button>
                 </td>
             </tr>
@@ -361,7 +509,71 @@ const PersonalPage = {
             else selectZeroBtn.classList.add('hidden');
         }
 
+        // 게임회비 의심 거래 감지 배너 업데이트
+        const duesTxList = txList.filter(t => Utils.isLikelyGameDues(t.type, t.memo));
+        const duesBanner = document.getElementById('dues-suggestion-banner');
+        const duesCountEl = document.getElementById('dues-detect-count');
+        if (duesBanner && duesCountEl) {
+            if (duesTxList.length > 0) {
+                duesCountEl.textContent = duesTxList.length;
+                duesBanner.classList.remove('hidden');
+            } else {
+                duesBanner.classList.add('hidden');
+            }
+        }
+
         this.updateBulkDeleteButton();
+    },
+
+    /** 감지된 게임회비 거래 일괄 이전 */
+    async bulkMoveToGameDues() {
+        const duesTxList = (this.cachedTransactions || []).filter(t => Utils.isLikelyGameDues(t.type, t.memo));
+        if (duesTxList.length === 0) {
+            Utils.toast('이전할 게임회비 입금 내역이 없습니다.', 'info');
+            return;
+        }
+
+        const totalAmt = duesTxList.reduce((s, t) => s + Utils.parseAmount(t.amount), 0);
+        const confirmed = confirm(
+            `감지된 ${duesTxList.length}건의 멤버 회비 입금(총 ${Utils.formatVND(totalAmt)})을\n` +
+            `개인 가계부에서 제외하고 [🎮 게임회비 관리]로 일괄 분리 이전할까요?`
+        );
+        if (!confirmed) return;
+
+        let successCount = 0;
+        for (const tx of duesTxList) {
+            try {
+                await Store.convertPersonalTxToGameDues(tx);
+                successCount++;
+            } catch(e) {
+                console.error('회비 이전 오류:', e, tx);
+            }
+        }
+
+        if (successCount > 0) {
+            Utils.toast(`총 ${successCount}건의 게임회비가 성공적으로 이전되었습니다! (개인 가계부에서 분리됨)`, 'success');
+            await this.refresh();
+        }
+    },
+
+    /** 단일 거래를 게임회비로 분리 이전 */
+    async moveToGameDues(txId) {
+        const tx = this.cachedTransactions.find(t => String(t.id) === String(txId));
+        if (!tx) return;
+
+        const name = Utils.extractMemberName(tx.memo);
+        const isIncome = String(tx.type).trim().toLowerCase() === 'income';
+        const msg = isIncome
+            ? `이 입금(${Utils.formatVND(tx.amount)})을 개인 가계부에서 제외하고, 🎮 [${name}] 게임회비 입금으로 이전할까요?`
+            : `이 지출(${Utils.formatVND(tx.amount)})을 개인 가계부에서 제외하고, 🎮 게임회비 지출로 이전할까요?`;
+
+        if (!confirm(msg)) return;
+
+        const success = await Store.convertPersonalTxToGameDues(tx);
+        if (success) {
+            Utils.toast('🎮 게임회비로 성공적으로 이전되었습니다! (개인 가계부에서 분리됨)', 'success');
+            await this.refresh();
+        }
     },
 
     async openTxModal(editTx = null) {
@@ -370,13 +582,14 @@ const PersonalPage = {
         const editTime = editTx && editTx.created_at ? (() => {
             try {
                 const d = new Date(editTx.created_at);
-                const hh = String(d.getHours()).padStart(2, '0');
-                const mm = String(d.getMinutes()).padStart(2, '0');
-                return `${hh}:${mm}`;
-            } catch(e) { return Utils.currentTime(); }
+                if (!isNaN(d.getTime())) {
+                    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                }
+            } catch(e) {}
+            return Utils.currentTime();
         })() : Utils.currentTime();
 
-        Modal.open(isEdit ? '거래 수정' : '수입/지출 입력', `
+        Modal.open(isEdit ? '거래 내역 수정' : '새 거래 입력', `
             <div class="form-grid">
                 <div class="form-group">
                     <label>날짜</label>
@@ -427,13 +640,18 @@ const PersonalPage = {
         const filterCats = () => {
             const selType = String(typeSelect.value).trim().toLowerCase();
             const filtered = cats.filter(c => String(c.type).trim().toLowerCase() === selType);
+            let optionsHtml = '';
             if (filtered.length > 0) {
-                catSelect.innerHTML = filtered.map(c =>
+                optionsHtml = filtered.map(c =>
                     `<option value="${c.id}">${c.icon || '📌'} ${c.name}</option>`
                 ).join('');
             } else {
-                catSelect.innerHTML = `<option value="1">💰 기타</option>`;
+                optionsHtml = `<option value="1">💰 기타</option>`;
             }
+
+            optionsHtml += `<option value="DUES_CONVERT" style="color:#fbbf24;font-weight:700;background:rgba(251,191,36,0.1)">🎮 [게임회비로 분리 이전 (가계부 제외)]</option>`;
+
+            catSelect.innerHTML = optionsHtml;
             if (editTx && editTx.category_id) catSelect.value = String(editTx.category_id);
         };
 
@@ -445,25 +663,44 @@ const PersonalPage = {
             const txTime = document.getElementById('tx-time')?.value || Utils.currentTime();
             const amount = Utils.parseAmount(document.getElementById('tx-amount').value);
             const selectedCatId = document.getElementById('tx-category').value;
+            const memoText = document.getElementById('tx-memo').value.trim();
+            const txType = String(document.getElementById('tx-type').value).trim().toLowerCase();
+
             let fullISO = new Date().toISOString();
             try {
                 fullISO = new Date(`${txDate}T${txTime}:00`).toISOString();
             } catch(e) {}
 
-            const data = {
-                tx_date: txDate,
-                created_at: fullISO,
-                type: String(document.getElementById('tx-type').value).trim().toLowerCase(),
-                payment_method: document.getElementById('tx-method').value,
-                category_id: selectedCatId ? (isNaN(Number(selectedCatId)) ? selectedCatId : Number(selectedCatId)) : 1,
-                amount: amount,
-                memo: document.getElementById('tx-memo').value.trim()
-            };
-
-            if (!data.tx_date || !data.amount || data.amount <= 0) {
+            if (!txDate || amount <= 0) {
                 Utils.toast('날짜와 올바른 금액(0 이상)을 입력해주세요', 'error');
                 return;
             }
+
+            if (selectedCatId === 'DUES_CONVERT') {
+                const tempTx = {
+                    id: editTx?.id,
+                    tx_date: txDate,
+                    created_at: fullISO,
+                    type: txType,
+                    amount: amount,
+                    memo: memoText
+                };
+                await Store.convertPersonalTxToGameDues(tempTx);
+                Utils.toast('🎮 게임회비로 분리 이전 완료! (개인 가계부에서 제외됨)', 'success');
+                Modal.close();
+                await PersonalPage.refresh();
+                return;
+            }
+
+            const data = {
+                tx_date: txDate,
+                created_at: fullISO,
+                type: txType,
+                payment_method: document.getElementById('tx-method').value,
+                category_id: selectedCatId ? (isNaN(Number(selectedCatId)) ? selectedCatId : Number(selectedCatId)) : 1,
+                amount: amount,
+                memo: memoText
+            };
 
             let result;
             if (isEdit) {
@@ -512,6 +749,7 @@ const PersonalPage = {
         const checkedCbs = document.querySelectorAll('.tx-cb:checked');
         const allCbs = document.querySelectorAll('.tx-cb');
         const bulkBtn = document.getElementById('btn-bulk-delete-tx');
+        const bulkEditBtn = document.getElementById('btn-bulk-edit-tx');
         const countEl = document.getElementById('selected-tx-count');
         const selectAllCb = document.getElementById('select-all-tx');
 
@@ -523,9 +761,112 @@ const PersonalPage = {
             else bulkBtn.classList.add('hidden');
         }
 
+        if (bulkEditBtn) {
+            if (count > 0) {
+                bulkEditBtn.classList.remove('hidden');
+                bulkEditBtn.textContent = `✏️ 선택 ${count}개 일괄 수정`;
+            } else {
+                bulkEditBtn.classList.add('hidden');
+            }
+        }
+
         if (selectAllCb && allCbs.length > 0) {
             selectAllCb.checked = checkedCbs.length === allCbs.length;
         }
+    },
+
+    /** 선택한 항목들 일괄 수정 (카테고리/결제수단/날짜 등) */
+    async bulkEditTx() {
+        const checkedCbs = document.querySelectorAll('.tx-cb:checked');
+        const ids = Array.from(checkedCbs).map(cb => cb.dataset.id);
+        if (ids.length === 0) {
+            Utils.toast('수정할 항목을 선택해주세요', 'info');
+            return;
+        }
+
+        const cats = await Store.getCategories();
+        const catOptions = cats.map(c => `<option value="${c.id}">[${c.type === 'income' ? '수입' : '지출'}] ${c.icon || '📌'} ${c.name}</option>`).join('');
+
+        Modal.open(`선택한 ${ids.length}개 항목 일괄 수정`, `
+            <div style="font-size:0.86rem;color:var(--text-muted);margin-bottom:14px;">
+                변경하고자 하는 항목만 선택하여 일괄 적용할 수 있습니다.
+            </div>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label>카테고리 일괄 변경 (선택)</label>
+                    <select id="bulk-cat">
+                        <option value="">— 변경 안 함 —</option>
+                        ${catOptions}
+                        <option value="DUES_CONVERT" style="color:#fbbf24;font-weight:700;">🎮 [게임회비로 일괄 분리 이전 (가계부 제외)]</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>결제 수단 일괄 변경 (선택)</label>
+                    <select id="bulk-method">
+                        <option value="">— 변경 안 함 —</option>
+                        <option value="transfer">💳 계좌이체</option>
+                        <option value="cash">💵 현금</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>날짜 일괄 변경 (선택)</label>
+                    <input type="date" id="bulk-date">
+                </div>
+            </div>
+        `, `
+            <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
+            <button class="btn btn-primary" id="btn-save-bulk-edit">일괄 적용</button>
+        `);
+
+        document.getElementById('btn-save-bulk-edit')?.addEventListener('click', async () => {
+            const catVal = document.getElementById('bulk-cat')?.value;
+            const methodVal = document.getElementById('bulk-method')?.value;
+            const dateVal = document.getElementById('bulk-date')?.value;
+
+            if (!catVal && !methodVal && !dateVal) {
+                Utils.toast('변경할 항목을 최소 하나 이상 선택하세요', 'info');
+                return;
+            }
+
+            const btn = document.getElementById('btn-save-bulk-edit');
+            if (btn) { btn.disabled = true; btn.textContent = '적용 중...'; }
+
+            // 🎮 게임회비로 일괄 이전인 경우
+            if (catVal === 'DUES_CONVERT') {
+                let successCount = 0;
+                for (const id of ids) {
+                    const tx = (PersonalPage.cachedTransactions || []).find(t => String(t.id) === String(id));
+                    if (tx) {
+                        await Store.convertPersonalTxToGameDues(tx);
+                        successCount++;
+                    }
+                }
+                Utils.toast(`🎮 ${successCount}건이 게임회비로 이전되었습니다! (개인 가계부에서 제외됨)`, 'success');
+                Modal.close();
+                await PersonalPage.refresh();
+                return;
+            }
+
+            const updates = {};
+            if (catVal) updates.category_id = Number(catVal);
+            if (methodVal) updates.payment_method = methodVal;
+            if (dateVal) updates.tx_date = dateVal;
+
+            let updatedCount = 0;
+            for (const id of ids) {
+                try {
+                    await Store.updateTransaction(id, updates);
+                    updatedCount++;
+                } catch(e) {
+                    console.error('일괄 수정 오류:', e);
+                }
+            }
+
+            Utils.toast(`총 ${updatedCount}건의 내역이 일괄 수정되었습니다!`, 'success');
+            Modal.close();
+            await PersonalPage.loadTransactions();
+            await PersonalPage.refreshSummary();
+        });
     },
 
     selectZeroTx() {
