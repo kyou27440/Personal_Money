@@ -89,18 +89,23 @@ const Utils = {
         return `${mm}월 ${dd}일 (${days[d.getDay()]})`;
     },
 
-    /** 날짜+시간 한국식 표시: 07월 24일 (금) 14:35 */
+    /** 날짜+시간 한국식 표시: 07월 24일 (금) 14:35 (시간 없으면 07월 24일 (금)만 표시) */
     formatDateTimeKR(dateStr, createdAtStr = null) {
         if (!dateStr) return '';
         const baseKR = Utils.formatDateKR(dateStr);
-        const timeSource = createdAtStr || (String(dateStr).includes('T') ? dateStr : null);
-        if (timeSource) {
+        
+        // createdAtStr 또는 dateStr에 시간 정보(T 또는 콜론)가 있는지 엄격 체크
+        if (createdAtStr && typeof createdAtStr === 'string' && (createdAtStr.includes('T') || createdAtStr.includes(':'))) {
             try {
-                const d = new Date(timeSource);
+                const d = new Date(createdAtStr);
                 if (!isNaN(d.getTime())) {
-                    const hh = String(d.getHours()).padStart(2, '0');
-                    const mm = String(d.getMinutes()).padStart(2, '0');
-                    return `${baseKR} ${hh}:${mm}`;
+                    const hh = d.getHours();
+                    const mm = d.getMinutes();
+                    const ss = d.getSeconds();
+                    // 00:00:00 (시간 미지정)이 아닌 실제 유효 시간일 때만 표시
+                    if (hh !== 0 || mm !== 0 || ss !== 0) {
+                        return `${baseKR} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+                    }
                 }
             } catch(e) {}
         }
