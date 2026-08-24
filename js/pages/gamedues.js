@@ -32,6 +32,12 @@ const GameDuesPage = {
         return res;
     },
 
+    async _updateIncome(id, updates) {
+        const res = await Store.updateGameDuesIncome(id, updates);
+        this._incomeList = await Store.getGameDuesIncome();
+        return res;
+    },
+
     async _deleteIncome(id) {
         await Store.deleteGameDuesIncome(id);
         this._incomeList = await Store.getGameDuesIncome();
@@ -39,6 +45,12 @@ const GameDuesPage = {
 
     async _addExpense(item) {
         const res = await Store.addGameDuesExpense(item);
+        this._expenseList = await Store.getGameDuesExpense();
+        return res;
+    },
+
+    async _updateExpense(id, updates) {
+        const res = await Store.updateGameDuesExpense(id, updates);
         this._expenseList = await Store.getGameDuesExpense();
         return res;
     },
@@ -529,21 +541,23 @@ const GameDuesPage = {
                 const initials = (inc.member_name || '?').slice(0, 2).toUpperCase();
                 const amt = Utils.parseAmount(inc.amount);
                 return `
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.84rem;gap:6px;">
-                        <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
-                            <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);
-                                        display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:700;color:#fff;flex-shrink:0;">${initials}</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;gap:6px;"
+                         ondblclick="GameDuesPage.openEditIncomeModal('${inc.id}')" title="더블클릭하여 금액/이름 수정">
+                        <div style="display:flex;align-items:center;gap:6px;overflow:hidden;">
+                            <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);
+                                        display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:#fff;flex-shrink:0;">${initials}</div>
                             <span style="font-weight:600;color:var(--text-primary);white-space:nowrap;">${Utils.escapeHtml(inc.member_name)}</span>
                             ${inc.memo ? `<span style="color:var(--text-muted);font-size:0.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${Utils.escapeHtml(inc.memo)}">(${Utils.escapeHtml(inc.memo)})</span>` : ''}
                         </div>
-                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                            <span style="font-weight:700;color:#34d399;">+${Utils.formatVND(amt)}</span>
-                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${inc.id}', true)" style="padding:1px 5px;font-size:0.7rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="회비가 아님: 게임회비에서 빼고 개인 가계부(입금)로 이동">💰가계부로</button>
-                            <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteIncome('${inc.id}')" style="padding:1px 3px;font-size:0.7rem;" title="삭제">🗑️</button>
+                        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">
+                            <span style="font-weight:700;color:#34d399;font-size:0.86rem;">+${Utils.formatVND(amt)}</span>
+                            <button class="btn btn-icon btn-sm" onclick="GameDuesPage.openEditIncomeModal('${inc.id}')" style="padding:1px 4px;font-size:0.72rem;" title="금액/이름 수정">✏️</button>
+                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${inc.id}', true)" style="padding:1px 5px;font-size:0.68rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="회비가 아님: 게임회비에서 빼고 개인 가계부(입금)로 이동">💰가계부로</button>
+                            <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteIncome('${inc.id}')" style="padding:1px 3px;font-size:0.68rem;" title="삭제">🗑️</button>
                         </div>
                     </div>
                 `;
-            }).join('') : '<div style="color:var(--text-muted);font-size:0.8rem;padding:8px 0;">입금 내역 없음</div>';
+            }).join('') : '<div style="color:var(--text-muted);font-size:0.78rem;padding:4px 0;">입금 내역 없음</div>';
 
             // 우측: 지출 내역 리스트
             const expItemsHtml = grp.expenses.length > 0 ? grp.expenses.map(exp => {
@@ -552,78 +566,80 @@ const GameDuesPage = {
                 const isScreen = /(?:스크린|골프|screen|golf|라운딩|round)/i.test(text);
                 const isMeal = /(?:식사|회식|밥|술|식당|저녁|점심|고기|맥주|meal|dinner)/i.test(text);
                 const badgeTag = isScreen
-                    ? '<span class="badge badge-indigo" style="font-size:0.7rem;padding:1px 6px;">⛳ 스크린</span>'
-                    : (isMeal ? '<span class="badge badge-amber" style="font-size:0.7rem;padding:1px 6px;">🍖 회식/식사</span>' : '<span class="badge badge-expense" style="font-size:0.7rem;padding:1px 6px;">기타</span>');
+                    ? '<span class="badge badge-indigo" style="font-size:0.68rem;padding:1px 5px;">⛳ 스크린</span>'
+                    : (isMeal ? '<span class="badge badge-amber" style="font-size:0.68rem;padding:1px 5px;">🍖 회식/식사</span>' : '<span class="badge badge-expense" style="font-size:0.68rem;padding:1px 5px;">기타</span>');
 
                 return `
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.84rem;gap:6px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;gap:6px;"
+                         ondblclick="GameDuesPage.openEditExpenseModal('${exp.id}')" title="더블클릭하여 금액/내용 수정">
                         <div style="display:flex;align-items:center;gap:6px;overflow:hidden;">
                             ${badgeTag}
                             <span style="font-weight:600;color:var(--text-primary);white-space:nowrap;">${Utils.escapeHtml(exp.title || '지출')}</span>
                             ${exp.memo ? `<span style="color:var(--text-muted);font-size:0.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${Utils.escapeHtml(exp.memo)}">(${Utils.escapeHtml(exp.memo)})</span>` : ''}
                         </div>
-                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                            <span style="font-weight:700;color:#fb7185;">-${Utils.formatVND(amt)}</span>
-                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${exp.id}', false)" style="padding:1px 5px;font-size:0.7rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="모임 지출이 아님: 가계부 지출로 이동">💰가계부로</button>
-                            <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteExpense('${exp.id}')" style="padding:1px 3px;font-size:0.7rem;" title="삭제">🗑️</button>
+                        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">
+                            <span style="font-weight:700;color:#fb7185;font-size:0.86rem;">-${Utils.formatVND(amt)}</span>
+                            <button class="btn btn-icon btn-sm" onclick="GameDuesPage.openEditExpenseModal('${exp.id}')" style="padding:1px 4px;font-size:0.72rem;" title="금액/지출내용 수정">✏️</button>
+                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${exp.id}', false)" style="padding:1px 5px;font-size:0.68rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="모임 지출이 아님: 가계부 지출로 이동">💰가계부로</button>
+                            <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteExpense('${exp.id}')" style="padding:1px 3px;font-size:0.68rem;" title="삭제">🗑️</button>
                         </div>
                     </div>
                 `;
-            }).join('') : '<div style="color:var(--text-muted);font-size:0.8rem;padding:8px 0;">지출 내역 없음</div>';
+            }).join('') : '<div style="color:var(--text-muted);font-size:0.78rem;padding:4px 0;">지출 내역 없음</div>';
 
             return `
-            <div class="dues-round-card" style="background:var(--card-bg);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,0.2);">
-                <!-- 카드 상단 종합 요약 바 -->
-                <div style="background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.08);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span style="font-size:1.2rem;">📅</span>
+            <div class="dues-round-card">
+                <!-- 카드 상단 종합 요약 바 (슬림 높이) -->
+                <div style="background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.08);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:1.1rem;">📅</span>
                         <div>
-                            <div style="font-size:1.02rem;font-weight:700;color:#fff;">${dateTitle} 모임 정산</div>
-                            <div style="font-size:0.76rem;color:var(--text-muted);">${grp.date}</div>
+                            <span style="font-size:0.95rem;font-weight:700;color:#fff;">${dateTitle} 모임 정산</span>
+                            <span style="font-size:0.75rem;color:var(--text-muted);margin-left:4px;">${grp.date}</span>
                         </div>
                     </div>
 
-                    <!-- 3대 요약 뱃지 -->
-                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                        <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);padding:4px 10px;border-radius:8px;text-align:right;">
-                            <div style="font-size:0.7rem;color:#34d399;font-weight:600;">💰 총 회비 걷힌 액</div>
-                            <div style="font-size:0.92rem;font-weight:800;color:#34d399;">+${Utils.formatVND(totalInc)}</div>
+                    <!-- 3대 요약 뱃지 (슬림) -->
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);padding:2px 8px;border-radius:6px;text-align:right;">
+                            <span style="font-size:0.68rem;color:#34d399;font-weight:600;">💰 회비:</span>
+                            <span style="font-size:0.86rem;font-weight:800;color:#34d399;">+${Utils.formatVND(totalInc)}</span>
                         </div>
-                        <div style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);padding:4px 10px;border-radius:8px;text-align:right;">
-                            <div style="font-size:0.7rem;color:#fb7185;font-weight:600;">💸 총 사용 지출</div>
-                            <div style="font-size:0.92rem;font-weight:800;color:#fb7185;">-${Utils.formatVND(totalExp)}</div>
+                        <div style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);padding:2px 8px;border-radius:6px;text-align:right;">
+                            <span style="font-size:0.68rem;color:#fb7185;font-weight:600;">💸 지출:</span>
+                            <span style="font-size:0.86rem;font-weight:800;color:#fb7185;">-${Utils.formatVND(totalExp)}</span>
                         </div>
-                        <div style="background:rgba(255,255,255,0.04);border:1px solid ${balColor}66;padding:4px 10px;border-radius:8px;text-align:right;">
-                            <div style="font-size:0.7rem;color:var(--text-muted);font-weight:600;">⚖️ 당일 정산 잔액</div>
-                            <div style="font-size:0.95rem;font-weight:800;color:${balColor};">${balSign}${Utils.formatVND(balance)}</div>
+                        <div style="background:rgba(255,255,255,0.04);border:1px solid ${balColor}66;padding:2px 8px;border-radius:6px;text-align:right;">
+                            <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">⚖️ 잔액:</span>
+                            <span style="font-size:0.88rem;font-weight:800;color:${balColor};">${balSign}${Utils.formatVND(balance)}</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 지출 목적별 요약 태그 바 -->
                 ${totalExp > 0 ? `
-                <div style="background:rgba(0,0,0,0.2);padding:6px 18px;display:flex;gap:14px;font-size:0.78rem;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">
+                <div style="background:rgba(0,0,0,0.2);padding:4px 14px;display:flex;gap:12px;font-size:0.75rem;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">
                     ${screenExp > 0 ? `<span>⛳ <strong>스크린비</strong>: <span style="color:#818cf8;font-weight:700;">${Utils.formatVND(screenExp)}</span></span>` : ''}
                     ${mealExp > 0 ? `<span>🍖 <strong>식사/회식비</strong>: <span style="color:#fbbf24;font-weight:700;">${Utils.formatVND(mealExp)}</span></span>` : ''}
                     ${otherExp > 0 ? `<span>💰 <strong>기타지출</strong>: <span style="color:#94a3b8;font-weight:700;">${Utils.formatVND(otherExp)}</span></span>` : ''}
                 </div>` : ''}
 
                 <!-- 카드 본문: 2열 그리드 (입금 vs 지출) -->
-                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;padding:16px 18px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:10px;padding:10px 14px;">
                     <!-- 좌측: 멤버별 납부 -->
-                    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px;">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
-                            <span style="font-size:0.84rem;font-weight:700;color:#34d399;">👥 멤버별 납부 (${grp.incomes.length}명)</span>
-                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openIncomeModal('${grp.date}')" style="padding:1px 6px;font-size:0.72rem;border-color:rgba(52,211,153,0.3);color:#34d399;">+ 입금추가</button>
+                    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:8px 10px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:4px;">
+                            <span style="font-size:0.8rem;font-weight:700;color:#34d399;">👥 멤버별 납부 (${grp.incomes.length}명)</span>
+                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openIncomeModal('${grp.date}')" style="padding:1px 5px;font-size:0.7rem;border-color:rgba(52,211,153,0.3);color:#34d399;">+ 입금추가</button>
                         </div>
                         ${incItemsHtml}
                     </div>
 
                     <!-- 우측: 지출 내역 -->
-                    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px;">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
-                            <span style="font-size:0.84rem;font-weight:700;color:#fb7185;">🧾 지출 내역 (${grp.expenses.length}건)</span>
-                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openExpenseModal('${grp.date}')" style="padding:1px 6px;font-size:0.72rem;border-color:rgba(248,113,113,0.3);color:#fb7185;">+ 지출추가</button>
+                    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:8px 10px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:4px;">
+                            <span style="font-size:0.8rem;font-weight:700;color:#fb7185;">🧾 지출 내역 (${grp.expenses.length}건)</span>
+                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openExpenseModal('${grp.date}')" style="padding:1px 5px;font-size:0.7rem;border-color:rgba(248,113,113,0.3);color:#fb7185;">+ 지출추가</button>
                         </div>
                         ${expItemsHtml}
                     </div>
@@ -661,15 +677,15 @@ const GameDuesPage = {
             const amt = Utils.parseAmount(r.amount);
 
             return `
-            <tr>
-                <td style="text-align:center;">
+            <tr ondblclick="GameDuesPage.openEditIncomeModal('${r.id}')" style="cursor:pointer" title="더블클릭하여 금액/이름 수정">
+                <td style="text-align:center;" onclick="event.stopPropagation()">
                     <input type="checkbox" class="inc-cb" data-id="${r.id}" style="cursor:pointer;width:16px;height:16px;">
                 </td>
                 <td style="white-space:nowrap;font-weight:500">${dateStr}</td>
                 <td>
                     <div style="display:flex;align-items:center;gap:8px">
-                        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);
-                                    display:flex;align-items:center;justify-content:center;font-size:0.68rem;font-weight:700;color:#fff;flex-shrink:0">
+                        <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);
+                                    display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;color:#fff;flex-shrink:0">
                             ${initials}
                         </div>
                         <span style="font-weight:600">${name}</span>
@@ -677,7 +693,8 @@ const GameDuesPage = {
                 </td>
                 <td class="amount-income">+${Utils.formatVND(amt)}</td>
                 <td style="color:var(--text-muted)">${Utils.escapeHtml(r.memo || '')}</td>
-                <td style="white-space:nowrap;text-align:center;">
+                <td style="white-space:nowrap;text-align:center;" onclick="event.stopPropagation()">
+                    <button class="btn btn-icon btn-sm" onclick="GameDuesPage.openEditIncomeModal('${r.id}')" title="금액/이름 수정">✏️</button>
                     <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${r.id}', true)" style="padding:2px 6px;font-size:0.75rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="이 입금을 다시 개인 가계부로 환원">💰가계부로</button>
                     <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteIncome('${r.id}')" title="삭제">🗑️</button>
                 </td>
@@ -722,15 +739,16 @@ const GameDuesPage = {
             const amt = Utils.parseAmount(r.amount);
 
             return `
-            <tr>
-                <td style="text-align:center;">
+            <tr ondblclick="GameDuesPage.openEditExpenseModal('${r.id}')" style="cursor:pointer" title="더블클릭하여 금액/내용 수정">
+                <td style="text-align:center;" onclick="event.stopPropagation()">
                     <input type="checkbox" class="exp-cb" data-id="${r.id}" style="cursor:pointer;width:16px;height:16px;">
                 </td>
                 <td style="white-space:nowrap;font-weight:500">${dateStr}</td>
                 <td style="font-weight:600">${Utils.escapeHtml(r.title || '')}</td>
                 <td class="amount-expense">-${Utils.formatVND(amt)}</td>
                 <td style="color:var(--text-muted)">${Utils.escapeHtml(r.memo || '')}</td>
-                <td style="white-space:nowrap;text-align:center;">
+                <td style="white-space:nowrap;text-align:center;" onclick="event.stopPropagation()">
+                    <button class="btn btn-icon btn-sm" onclick="GameDuesPage.openEditExpenseModal('${r.id}')" title="금액/내용 수정">✏️</button>
                     <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${r.id}', false)" style="padding:2px 6px;font-size:0.75rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="이 지출을 다시 개인 가계부로 환원">💰가계부로</button>
                     <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteExpense('${r.id}')" title="삭제">🗑️</button>
                 </td>
@@ -984,6 +1002,120 @@ const GameDuesPage = {
             Modal.close();
             this._refreshAll();
             Utils.toast('지출 등록 완료!', 'success');
+        });
+    },
+
+    openEditIncomeModal(id) {
+        const item = this._incomeList.find(r => String(r.id) === String(id));
+        if (!item) { Utils.toast('해당 입금 내역을 찾을 수 없습니다', 'error'); return; }
+
+        const knownNames = [...new Set(this._incomeList.map(r => r.member_name).filter(Boolean))];
+        const datalistOpts = knownNames.map(n => `<option value="${Utils.escapeHtml(n)}">`).join('');
+        const amt = Utils.parseAmount(item.amount);
+
+        Modal.open('✏️ 게임회비 입금 내역 수정', `
+            <datalist id="dl-member-names-edit">${datalistOpts}</datalist>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>날짜</label>
+                    <input type="date" id="edit-inc-date" value="${Utils.formatDate(item.tx_date)}">
+                </div>
+                <div class="form-group">
+                    <label>입금자 이름 (영문)</label>
+                    <input type="text" id="edit-inc-name" value="${Utils.escapeHtml(item.member_name || '')}" list="dl-member-names-edit"
+                           style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+                </div>
+                <div class="form-group full-width">
+                    <label>입금액 (VND)</label>
+                    <input type="text" id="edit-inc-amount" value="${amt > 0 ? amt.toLocaleString('ko-KR') : ''}" placeholder="예: 500,000" inputmode="numeric">
+                </div>
+            </div>
+            <div class="form-group mt-md">
+                <label>메모 (선택)</label>
+                <input type="text" id="edit-inc-memo" value="${Utils.escapeHtml(item.memo || '')}" placeholder="예: 8월 모임 회비">
+            </div>
+        `, `
+            <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
+            <button class="btn btn-primary" id="btn-update-income">수정 완료</button>
+        `);
+
+        Utils.bindAmountInputFormatter(document.getElementById('edit-inc-amount'));
+
+        document.getElementById('btn-update-income')?.addEventListener('click', async () => {
+            const date   = document.getElementById('edit-inc-date')?.value;
+            const name   = document.getElementById('edit-inc-name')?.value?.trim().toUpperCase();
+            const amount = Utils.parseAmount(document.getElementById('edit-inc-amount')?.value);
+            const memo   = document.getElementById('edit-inc-memo')?.value?.trim() || '';
+
+            if (!date)   { Utils.toast('날짜를 입력하세요', 'error'); return; }
+            if (!name)   { Utils.toast('입금자 이름을 입력하세요', 'error'); return; }
+            if (amount <= 0) { Utils.toast('입금액을 입력하세요', 'error'); return; }
+
+            const btn = document.getElementById('btn-update-income');
+            if (btn) { btn.disabled = true; btn.textContent = '수정 중...'; }
+
+            await this._updateIncome(id, { tx_date: date, member_name: name, amount, memo });
+            Modal.close();
+            this._refreshAll();
+            Utils.toast('입금 내역이 성공적으로 수정되었습니다!', 'success');
+        });
+    },
+
+    openEditExpenseModal(id) {
+        const item = this._expenseList.find(r => String(r.id) === String(id));
+        if (!item) { Utils.toast('해당 지출 내역을 찾을 수 없습니다', 'error'); return; }
+
+        const amt = Utils.parseAmount(item.amount);
+
+        Modal.open('✏️ 게임회비 지출 내역 수정', `
+            <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;">
+                <span style="font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;">빠른 선택:</span>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('edit-exp-title').value='⛳ 스크린 골프장 비용'" style="padding:2px 8px;font-size:0.75rem;">⛳ 스크린비</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('edit-exp-title').value='🍖 저녁 식사 / 회식비'" style="padding:2px 8px;font-size:0.75rem;">🍖 식사/회식비</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('edit-exp-title').value='☕ 음료 / 간식'" style="padding:2px 8px;font-size:0.75rem;">☕ 음료/간식</button>
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>날짜</label>
+                    <input type="date" id="edit-exp-date" value="${Utils.formatDate(item.tx_date)}">
+                </div>
+                <div class="form-group">
+                    <label>지출 내용 / 항목</label>
+                    <input type="text" id="edit-exp-title" value="${Utils.escapeHtml(item.title || '')}" placeholder="예: 스크린 골프비, 저녁 식사">
+                </div>
+                <div class="form-group full-width">
+                    <label>지출액 (VND)</label>
+                    <input type="text" id="edit-exp-amount" value="${amt > 0 ? amt.toLocaleString('ko-KR') : ''}" placeholder="예: 2,500,000" inputmode="numeric">
+                </div>
+            </div>
+            <div class="form-group mt-md">
+                <label>메모 (선택)</label>
+                <input type="text" id="edit-exp-memo" value="${Utils.escapeHtml(item.memo || '')}" placeholder="예: 4명 참가 / 골프존 18홀">
+            </div>
+        `, `
+            <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
+            <button class="btn btn-primary" id="btn-update-expense">수정 완료</button>
+        `);
+
+        Utils.bindAmountInputFormatter(document.getElementById('edit-exp-amount'));
+
+        document.getElementById('btn-update-expense')?.addEventListener('click', async () => {
+            const date   = document.getElementById('edit-exp-date')?.value;
+            const title  = document.getElementById('edit-exp-title')?.value?.trim();
+            const amount = Utils.parseAmount(document.getElementById('edit-exp-amount')?.value);
+            const memo   = document.getElementById('edit-exp-memo')?.value?.trim() || '';
+
+            if (!date)   { Utils.toast('날짜를 입력하세요', 'error'); return; }
+            if (!title)  { Utils.toast('지출 내용을 입력하세요', 'error'); return; }
+            if (amount <= 0) { Utils.toast('지출액을 입력하세요', 'error'); return; }
+
+            const btn = document.getElementById('btn-update-expense');
+            if (btn) { btn.disabled = true; btn.textContent = '수정 중...'; }
+
+            await this._updateExpense(id, { tx_date: date, title, amount, memo });
+            Modal.close();
+            this._refreshAll();
+            Utils.toast('지출 내역이 성공적으로 수정되었습니다!', 'success');
         });
     },
 
