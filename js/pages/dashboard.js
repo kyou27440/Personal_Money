@@ -23,8 +23,8 @@ const DashboardPage = {
                 </div>
             </div>
             <div style="text-align:right;flex-shrink:0;">
-                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.7.0 (수기 직접입력·전체 수정·일괄편집 완비)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-08-24 13:40 업데이트</div>
+                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v2.8.0 (중복의심필터·스마트회비이전·메모정제 완비)</span>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-08-24 13:55 업데이트</div>
             </div>
         </div>
 
