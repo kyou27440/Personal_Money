@@ -522,14 +522,18 @@ const GameDuesPage = {
                 const initials = (inc.member_name || '?').slice(0, 2).toUpperCase();
                 const amt = Utils.parseAmount(inc.amount);
                 return `
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.84rem;">
-                        <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.84rem;gap:6px;">
+                        <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
                             <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);
-                                        display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:700;color:#fff;">${initials}</div>
-                            <span style="font-weight:600;color:var(--text-primary);">${Utils.escapeHtml(inc.member_name)}</span>
-                            ${inc.memo ? `<span style="color:var(--text-muted);font-size:0.75rem;">(${Utils.escapeHtml(inc.memo)})</span>` : ''}
+                                        display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:700;color:#fff;flex-shrink:0;">${initials}</div>
+                            <span style="font-weight:600;color:var(--text-primary);white-space:nowrap;">${Utils.escapeHtml(inc.member_name)}</span>
+                            ${inc.memo ? `<span style="color:var(--text-muted);font-size:0.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${Utils.escapeHtml(inc.memo)}">(${Utils.escapeHtml(inc.memo)})</span>` : ''}
                         </div>
-                        <span style="font-weight:700;color:#34d399;">+${Utils.formatVND(amt)}</span>
+                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                            <span style="font-weight:700;color:#34d399;">+${Utils.formatVND(amt)}</span>
+                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${inc.id}', true)" style="padding:1px 5px;font-size:0.7rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="회비가 아님: 게임회비에서 빼고 개인 가계부(입금)로 이동">💰가계부로</button>
+                            <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteIncome('${inc.id}')" style="padding:1px 3px;font-size:0.7rem;" title="삭제">🗑️</button>
+                        </div>
                     </div>
                 `;
             }).join('') : '<div style="color:var(--text-muted);font-size:0.8rem;padding:8px 0;">입금 내역 없음</div>';
@@ -545,13 +549,17 @@ const GameDuesPage = {
                     : (isMeal ? '<span class="badge badge-amber" style="font-size:0.7rem;padding:1px 6px;">🍖 회식/식사</span>' : '<span class="badge badge-expense" style="font-size:0.7rem;padding:1px 6px;">기타</span>');
 
                 return `
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.84rem;">
-                        <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.84rem;gap:6px;">
+                        <div style="display:flex;align-items:center;gap:6px;overflow:hidden;">
                             ${badgeTag}
-                            <span style="font-weight:600;color:var(--text-primary);">${Utils.escapeHtml(exp.title || '지출')}</span>
-                            ${exp.memo ? `<span style="color:var(--text-muted);font-size:0.75rem;">(${Utils.escapeHtml(exp.memo)})</span>` : ''}
+                            <span style="font-weight:600;color:var(--text-primary);white-space:nowrap;">${Utils.escapeHtml(exp.title || '지출')}</span>
+                            ${exp.memo ? `<span style="color:var(--text-muted);font-size:0.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${Utils.escapeHtml(exp.memo)}">(${Utils.escapeHtml(exp.memo)})</span>` : ''}
                         </div>
-                        <span style="font-weight:700;color:#fb7185;">-${Utils.formatVND(amt)}</span>
+                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                            <span style="font-weight:700;color:#fb7185;">-${Utils.formatVND(amt)}</span>
+                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${exp.id}', false)" style="padding:1px 5px;font-size:0.7rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="모임 지출이 아님: 가계부 지출로 이동">💰가계부로</button>
+                            <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteExpense('${exp.id}')" style="padding:1px 3px;font-size:0.7rem;" title="삭제">🗑️</button>
+                        </div>
                     </div>
                 `;
             }).join('') : '<div style="color:var(--text-muted);font-size:0.8rem;padding:8px 0;">지출 내역 없음</div>';
