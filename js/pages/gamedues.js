@@ -515,7 +515,13 @@ const GameDuesPage = {
             const dateTitle = Utils.formatDateKR(grp.date);
             const totalInc = grp.incomes.reduce((s, r) => s + Utils.parseAmount(r.amount), 0);
             const totalExp = grp.expenses.reduce((s, r) => s + Utils.parseAmount(r.amount), 0);
-            const balance = totalInc - totalExp;
+            const rawBalance = totalInc - totalExp;
+
+            // 🌟 5만동 이하 잔액 총무 수고비 자동 처리 (5만동 이하일 때만 0으로 정산)
+            const isManagerTipEligible = rawBalance > 0 && rawBalance <= 50000;
+            const managerTip = isManagerTipEligible ? rawBalance : 0;
+            const displayTotalExp = totalExp + managerTip;
+            const finalBalance = isManagerTipEligible ? 0 : rawBalance;
 
             // 스크린비 vs 식사비 지출 분류
             let screenExp = 0;
@@ -534,8 +540,8 @@ const GameDuesPage = {
                 }
             });
 
-            const balColor = balance >= 0 ? '#34d399' : '#fb7185';
-            const balSign = balance >= 0 ? '+' : '';
+            const balColor = finalBalance > 0 ? '#34d399' : (finalBalance === 0 ? '#818cf8' : '#fb7185');
+            const balSign = finalBalance > 0 ? '+' : '';
 
             // 좌측: 멤버별 입금 리스트
             const incItemsHtml = grp.incomes.length > 0 ? grp.incomes.map(inc => {
@@ -560,8 +566,8 @@ const GameDuesPage = {
                 `;
             }).join('') : '<div style="color:var(--text-muted);font-size:0.78rem;padding:4px 0;">입금 내역 없음</div>';
 
-            // 우측: 지출 내역 리스트
-            const expItemsHtml = grp.expenses.length > 0 ? grp.expenses.map(exp => {
+            // 우측: 지출 내역 리스트 (수고비 포함)
+            let expRows = grp.expenses.map(exp => {
                 const text = `${exp.title || ''} ${exp.memo || ''}`.toLowerCase();
                 const amt = Utils.parseAmount(exp.amount);
                 const isScreen = /(?:스크린|골프|screen|golf|라운딩|round)/i.test(text);
@@ -586,7 +592,24 @@ const GameDuesPage = {
                         </div>
                     </div>
                 `;
-            }).join('') : '<div style="color:var(--text-muted);font-size:0.78rem;padding:4px 0;">지출 내역 없음</div>';
+            });
+
+            // ☕ 5만동 이하 총무 수고비 행 추가
+            if (isManagerTipEligible) {
+                expRows.push(`
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(251,191,36,0.15);font-size:0.82rem;gap:6px;background:rgba(251,191,36,0.04);border-radius:4px;margin-top:2px;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span class="badge badge-amber" style="font-size:0.68rem;padding:1px 5px;background:rgba(251,191,36,0.2);color:#fbbf24;">☕ 총무 수고비</span>
+                            <span style="font-weight:600;color:#fbbf24;">모임 잔액 자동 수고비</span>
+                            <span style="color:var(--text-muted);font-size:0.72rem;">(5만동 이하 0원 정산)</span>
+                        </div>
+                        <span style="font-weight:700;color:#fbbf24;font-size:0.86rem;padding-right:4px;">-${Utils.formatVND(managerTip)}</span>
+                    </div>
+                `);
+            }
+
+            const expItemsHtml = expRows.length > 0 ? expRows.join('') : '<div style="color:var(--text-muted);font-size:0.78rem;padding:4px 0;">지출 내역 없음</div>';
+            const expCountText = isManagerTipEligible ? `${grp.expenses.length}건 + 수고비` : `${grp.expenses.length}건`;
 
             return `
             <div class="dues-round-card">
@@ -608,21 +631,22 @@ const GameDuesPage = {
                         </div>
                         <div style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);padding:2px 8px;border-radius:6px;text-align:right;">
                             <span style="font-size:0.68rem;color:#fb7185;font-weight:600;">💸 지출:</span>
-                            <span style="font-size:0.86rem;font-weight:800;color:#fb7185;">-${Utils.formatVND(totalExp)}</span>
+                            <span style="font-size:0.86rem;font-weight:800;color:#fb7185;">-${Utils.formatVND(displayTotalExp)}</span>
                         </div>
                         <div style="background:rgba(255,255,255,0.04);border:1px solid ${balColor}66;padding:2px 8px;border-radius:6px;text-align:right;">
                             <span style="font-size:0.68rem;color:var(--text-muted);font-weight:600;">⚖️ 잔액:</span>
-                            <span style="font-size:0.88rem;font-weight:800;color:${balColor};">${balSign}${Utils.formatVND(balance)}</span>
+                            <span style="font-size:0.88rem;font-weight:800;color:${balColor};">${balSign}${Utils.formatVND(finalBalance)}${isManagerTipEligible ? ' (0원 정산)' : ''}</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 지출 목적별 요약 태그 바 -->
-                ${totalExp > 0 ? `
+                ${displayTotalExp > 0 ? `
                 <div style="background:rgba(0,0,0,0.2);padding:4px 14px;display:flex;gap:12px;font-size:0.75rem;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">
                     ${screenExp > 0 ? `<span>⛳ <strong>스크린비</strong>: <span style="color:#818cf8;font-weight:700;">${Utils.formatVND(screenExp)}</span></span>` : ''}
                     ${mealExp > 0 ? `<span>🍖 <strong>식사/회식비</strong>: <span style="color:#fbbf24;font-weight:700;">${Utils.formatVND(mealExp)}</span></span>` : ''}
                     ${otherExp > 0 ? `<span>💰 <strong>기타지출</strong>: <span style="color:#94a3b8;font-weight:700;">${Utils.formatVND(otherExp)}</span></span>` : ''}
+                    ${managerTip > 0 ? `<span>☕ <strong>총무 수고비</strong>: <span style="color:#fbbf24;font-weight:700;">${Utils.formatVND(managerTip)}</span></span>` : ''}
                 </div>` : ''}
 
                 <!-- 카드 본문: 2열 그리드 (입금 vs 지출) -->
@@ -639,7 +663,7 @@ const GameDuesPage = {
                     <!-- 우측: 지출 내역 -->
                     <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:8px 10px;">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:4px;">
-                            <span style="font-size:0.8rem;font-weight:700;color:#fb7185;">🧾 지출 내역 (${grp.expenses.length}건)</span>
+                            <span style="font-size:0.8rem;font-weight:700;color:#fb7185;">🧾 지출 내역 (${expCountText})</span>
                             <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openExpenseModal('${grp.date}')" style="padding:1px 5px;font-size:0.7rem;border-color:rgba(248,113,113,0.3);color:#fb7185;">+ 지출추가</button>
                         </div>
                         ${expItemsHtml}
