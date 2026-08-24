@@ -141,16 +141,28 @@ const ImportPage = {
         this._categories = await Store.getCategories();
 
         const fileExcel = document.getElementById('file-excel');
+        const dropExcel = document.getElementById('dropzone-excel');
         if (fileExcel) {
             fileExcel.addEventListener('change', (e) => {
                 if (e.target.files[0]) this.handleExcelFile(e.target.files[0]);
             });
         }
+        if (dropExcel && fileExcel) {
+            dropExcel.addEventListener('click', (e) => {
+                if (e.target !== fileExcel) fileExcel.click();
+            });
+        }
 
         const fileImg = document.getElementById('file-image');
+        const dropImg = document.getElementById('dropzone-image');
         if (fileImg) {
             fileImg.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) this.handleImageFiles(Array.from(e.target.files));
+            });
+        }
+        if (dropImg && fileImg) {
+            dropImg.addEventListener('click', (e) => {
+                if (e.target !== fileImg) fileImg.click();
             });
         }
 
@@ -165,6 +177,10 @@ const ImportPage = {
             if (imgs.length > 0) this.handleImageFiles(imgs);
             else Utils.toast('이미지 파일만 지원합니다', 'error');
         });
+
+        // 탭 버튼 이벤트 확실한 바인딩
+        document.getElementById('tab-excel')?.addEventListener('click', () => this.switchTab('excel'));
+        document.getElementById('tab-image')?.addEventListener('click', () => this.switchTab('image'));
 
         document.getElementById('import-tbody')?.addEventListener('change', () => {
             this.updateSaveSummary();
