@@ -61,7 +61,10 @@ const PersonalPage = {
                     <span>✍️ 가계부 직접 입력</span>
                     <span style="font-size:0.75rem;font-weight:500;color:var(--text-muted);">모달 없이 바로 등록</span>
                 </div>
-                <button class="btn btn-primary btn-sm" id="btn-add-tx" style="padding:3px 10px;font-size:0.8rem;">+ 상세 입력 모달</button>
+                <div style="display:flex;gap:6px;">
+                    <button class="btn btn-ghost btn-sm" id="btn-quick-manage-cat" style="padding:3px 9px;font-size:0.78rem;border-color:rgba(99,102,241,0.4);color:#818cf8;">🏷️ 카테고리 추가/관리</button>
+                    <button class="btn btn-primary btn-sm" id="btn-add-tx" style="padding:3px 10px;font-size:0.8rem;">+ 상세 입력 모달</button>
+                </div>
             </div>
             <div class="quick-input-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%;box-sizing:border-box;">
                 <input type="date" id="quick-date" value="${Utils.today()}" style="flex:1 1 125px;min-width:115px;max-width:160px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.82rem;box-sizing:border-box;">
@@ -147,6 +150,7 @@ const PersonalPage = {
     async afterRender() {
         document.getElementById('btn-add-tx')?.addEventListener('click', () => this.openTxModal());
         document.getElementById('btn-manage-cat')?.addEventListener('click', () => this.openCategoryModal());
+        document.getElementById('btn-quick-manage-cat')?.addEventListener('click', () => this.openCategoryModal());
         document.getElementById('btn-filter-tx')?.addEventListener('click', () => this.loadTransactions());
         document.getElementById('filter-sort')?.addEventListener('change', () => this.loadTransactions());
         document.getElementById('btn-bulk-delete-tx')?.addEventListener('click', () => this.bulkDeleteTx());
@@ -1204,50 +1208,111 @@ const PersonalPage = {
 
     async openCategoryModal() {
         const cats = await Store.getCategories();
-        const rows = cats.map(c => `
-            <tr>
-                <td>${c.icon || '📌'}</td>
-                <td>${Utils.escapeHtml(c.name)}</td>
-                <td><span class="badge badge-${c.type}">${c.type === 'income' ? '수입' : '지출'}</span></td>
-                <td><button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteCategory('${c.id}')">🗑️</button></td>
+        const expenseCats = cats.filter(c => c.type === 'expense');
+        const incomeCats = cats.filter(c => c.type === 'income');
+
+        const emojiList = ['🍚', '☕', '🍖', '⛳', '🚗', '🏠', '💊', '✈️', '🎮', '📱', '🛍️', '💰', '🎁', '🛒', '🍺', '⛽', '💇', '📚', '📌'];
+
+        const renderCatRows = (list) => list.map(c => `
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                <td style="font-size:1.2rem;text-align:center;width:45px;padding:8px;">${c.icon || '📌'}</td>
+                <td style="font-weight:700;color:var(--text-primary);padding:8px;">${Utils.escapeHtml(c.name)}</td>
+                <td style="text-align:center;width:80px;padding:8px;">
+                    <span class="badge badge-${c.type}" style="font-size:0.75rem;padding:2px 8px;">${c.type === 'income' ? '수입' : '지출'}</span>
+                </td>
+                <td style="text-align:center;width:60px;padding:8px;">
+                    <button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteCategory('${c.id}')" title="삭제" style="padding:2px 6px;">🗑️</button>
+                </td>
             </tr>
         `).join('');
 
-        Modal.open('카테고리 관리', `
-            <div class="form-grid mb-lg">
-                <div class="form-group">
-                    <label>카테고리명</label>
-                    <input type="text" id="cat-name" placeholder="예: 커피">
+        Modal.open('🏷️ 카테고리 관리 및 새 카테고리 추가', `
+            <!-- 새 카테고리 등록 박스 -->
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(99,102,241,0.25);border-radius:12px;padding:14px;margin-bottom:16px;">
+                <div style="font-weight:700;font-size:0.9rem;color:#818cf8;margin-bottom:10px;">✨ 새 카테고리 즉시 등록</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:10px;">
+                    <div>
+                        <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px;">카테고리명</label>
+                        <input type="text" id="cat-name" placeholder="예: 스크린골프, 간식비" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:0.85rem;box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px;">구분</label>
+                        <select id="cat-type" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:0.85rem;box-sizing:border-box;">
+                            <option value="expense">📉 지출 카테고리</option>
+                            <option value="income">📈 수입 카테고리</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px;">선택된 아이콘</label>
+                        <input type="text" id="cat-icon" value="📌" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:1.1rem;text-align:center;box-sizing:border-box;" readonly>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>구분</label>
-                    <select id="cat-type">
-                        <option value="expense">지출</option>
-                        <option value="income">수입</option>
-                    </select>
+
+                <!-- 추천 아이콘 팔레트 -->
+                <div style="margin-bottom:12px;">
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">아이콘 원클릭 선택:</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;" id="cat-emoji-palette">
+                        ${emojiList.map(em => `<button type="button" class="btn btn-ghost btn-sm emoji-btn" data-emoji="${em}" style="padding:4px 8px;font-size:1.1rem;background:rgba(255,255,255,0.05);border-radius:6px;">${em}</button>`).join('')}
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>아이콘</label>
-                    <input type="text" id="cat-icon" value="📌" maxlength="4" style="width:60px">
-                </div>
+
+                <button class="btn btn-primary btn-sm" id="btn-add-cat" style="width:100%;font-weight:700;padding:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);">
+                    ＋ 새 카테고리 저장
+                </button>
             </div>
-            <button class="btn btn-success btn-sm mb-lg" id="btn-add-cat">+ 추가</button>
-            <div class="table-wrapper">
-                <table><thead><tr><th>아이콘</th><th>이름</th><th>구분</th><th>삭제</th></tr></thead>
-                <tbody>${rows || '<tr><td colspan="4" class="text-center text-muted">카테고리 없음</td></tr>'}</tbody>
+
+            <!-- 등록된 카테고리 목록 (탭) -->
+            <div style="font-weight:700;font-size:0.88rem;color:var(--text-primary);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+                <span>📋 등록된 카테고리 목록 (총 ${cats.length}개)</span>
+            </div>
+            <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+                    <thead style="background:rgba(255,255,255,0.04);position:sticky;top:0;">
+                        <tr>
+                            <th style="width:45px;text-align:center;padding:6px;">아이콘</th>
+                            <th style="text-align:left;padding:6px;">이름</th>
+                            <th style="text-align:center;width:80px;padding:6px;">구분</th>
+                            <th style="text-align:center;width:60px;padding:6px;">삭제</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${renderCatRows(cats) || '<tr><td colspan="4" class="text-center text-muted" style="padding:20px;">등록된 카테고리가 없습니다</td></tr>'}
+                    </tbody>
                 </table>
             </div>
+        `, `
+            <button class="btn btn-ghost" onclick="Modal.close()">닫기</button>
         `);
 
+        // 이모지 클릭 시 아이콘 인풋 반영
+        document.querySelectorAll('.emoji-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const em = btn.dataset.emoji;
+                const iconInput = document.getElementById('cat-icon');
+                if (iconInput) iconInput.value = em;
+            });
+        });
+
+        // 엔터키 등록 지원
+        document.getElementById('cat-name')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('btn-add-cat')?.click();
+        });
+
         document.getElementById('btn-add-cat')?.addEventListener('click', async () => {
-            const name = document.getElementById('cat-name').value.trim();
-            const type = document.getElementById('cat-type').value;
-            const icon = document.getElementById('cat-icon').value || '📌';
-            if (!name) { Utils.toast('카테고리명을 입력해주세요', 'error'); return; }
+            const name = (document.getElementById('cat-name')?.value || '').trim();
+            const type = document.getElementById('cat-type')?.value || 'expense';
+            const icon = document.getElementById('cat-icon')?.value || '📌';
+            if (!name) { Utils.toast('카테고리명을 입력해주세요', 'error'); document.getElementById('cat-name')?.focus(); return; }
+
             const result = await Store.addCategory({ name, type, icon });
             if (result) {
-                Utils.toast('카테고리가 추가되었습니다', 'success');
-                this.openCategoryModal();
+                Utils.toast(`🎉 [${icon} ${name}] 카테고리가 추가되었습니다!`, 'success');
+                // 카테고리 모달 및 페이지 갱신
+                await this.openCategoryModal();
+                await this.loadTransactions();
+                // 퀵 입력 카테고리 셀렉트박스도 갱신
+                const quickType = document.getElementById('quick-type');
+                if (quickType) quickType.dispatchEvent(new Event('change'));
             } else {
                 Utils.toast('추가 실패 (중복 이름일 수 있습니다)', 'error');
             }
