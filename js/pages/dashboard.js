@@ -23,8 +23,8 @@ const DashboardPage = {
                 </div>
             </div>
             <div style="text-align:right;flex-shrink:0;">
-                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v4.3.0 (가계부 실시간 대조 배너 완비)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-08-24 15:23 업데이트</div>
+                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v4.4.0 (본인부담 회비 가계부지출 연동 완비)</span>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-08-24 15:31 업데이트</div>
             </div>
         </div>
 
