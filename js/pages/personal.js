@@ -50,28 +50,28 @@ const PersonalPage = {
         </div>
 
         <!-- ⚡ 빠른 1초 직접 입력 바 -->
-        <div class="card mb-lg" style="background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(16,185,129,0.06)); border: 1px solid rgba(99,102,241,0.25); border-radius: 12px; padding: 14px 18px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                <div style="font-weight:700;font-size:0.92rem;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
+        <div class="card mb-lg quick-input-card" style="background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(16,185,129,0.06)); border: 1px solid rgba(99,102,241,0.25); border-radius: 12px; padding: 12px 16px; width: 100%; box-sizing: border-box; max-width: 100%;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+                <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
                     <span>✍️ 가계부 직접 입력</span>
-                    <span style="font-size:0.75rem;font-weight:500;color:var(--text-muted);">모달 없이 바로 빠르게 등록</span>
+                    <span style="font-size:0.75rem;font-weight:500;color:var(--text-muted);">모달 없이 바로 등록</span>
                 </div>
-                <button class="btn btn-primary btn-sm" id="btn-add-tx" style="padding:4px 12px;font-size:0.82rem;">+ 상세 입력 모달</button>
+                <button class="btn btn-primary btn-sm" id="btn-add-tx" style="padding:3px 10px;font-size:0.8rem;">+ 상세 입력 모달</button>
             </div>
-            <div style="display:grid;grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) 100px;gap:8px;align-items:center;">
-                <input type="date" id="quick-date" value="${Utils.today()}" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;">
-                <select id="quick-type" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;">
+            <div class="quick-input-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%;box-sizing:border-box;">
+                <input type="date" id="quick-date" value="${Utils.today()}" style="flex:1 1 125px;min-width:115px;max-width:160px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.82rem;box-sizing:border-box;">
+                <select id="quick-type" style="flex:1 1 90px;min-width:85px;max-width:110px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.82rem;box-sizing:border-box;">
                     <option value="expense">📉 지출</option>
                     <option value="income">📈 수입</option>
                 </select>
-                <select id="quick-method" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;">
+                <select id="quick-method" style="flex:1 1 100px;min-width:95px;max-width:120px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.82rem;box-sizing:border-box;">
                     <option value="transfer">💳 계좌이체</option>
                     <option value="cash">💵 현금</option>
                 </select>
-                <select id="quick-category" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;"></select>
-                <input type="text" id="quick-amount" placeholder="금액 (VND)" inputmode="numeric" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;font-weight:700;">
-                <input type="text" id="quick-memo" placeholder="메모 (선택)" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.83rem;">
-                <button class="btn btn-primary btn-sm" id="btn-quick-submit" style="height:35px;font-weight:700;">+ 바로 추가</button>
+                <select id="quick-category" style="flex:1 1 110px;min-width:100px;max-width:140px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.82rem;box-sizing:border-box;"></select>
+                <input type="text" id="quick-amount" placeholder="금액 (VND)" inputmode="numeric" style="flex:1 1 120px;min-width:110px;max-width:160px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.82rem;font-weight:700;box-sizing:border-box;">
+                <input type="text" id="quick-memo" placeholder="메모 (선택)" style="flex:2 1 140px;min-width:120px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:0.82rem;box-sizing:border-box;">
+                <button class="btn btn-primary btn-sm" id="btn-quick-submit" style="flex:0 0 auto;min-width:85px;height:33px;font-weight:700;padding:4px 12px;box-sizing:border-box;">+ 바로 추가</button>
             </div>
         </div>
 
@@ -176,6 +176,8 @@ const PersonalPage = {
             if (end) end.value = Utils.formatDate(lastMonthLast);
             this.loadTransactions();
         });
+
+        document.getElementById('btn-filter-duplicates')?.addEventListener('click', () => this.filterDuplicates());
 
         // ─── ⚡ 빠른 1초 수기 입력 폼 바인딩 ───
         const quickAmt = document.getElementById('quick-amount');
@@ -968,6 +970,156 @@ const PersonalPage = {
             await PersonalPage.loadTransactions();
             await PersonalPage.refreshSummary();
         });
+    },
+
+    /** 카테고리 빠른 변경 모달 */
+    async quickEditCategory(txId) {
+        const tx = (this.cachedTransactions || []).find(t => String(t.id) === String(txId));
+        if (!tx) return;
+
+        const cats = await Store.getCategories();
+        const tType = String(tx.type).trim().toLowerCase();
+        const filtered = cats.filter(c => String(c.type).trim().toLowerCase() === tType);
+
+        Modal.open(`카테고리 변경: ${tx.personal_categories?.icon || '📌'} ${tx.personal_categories?.name || '기타'}`, `
+            <div style="font-size:0.86rem;color:var(--text-muted);margin-bottom:12px;">
+                거래: <strong>${Utils.formatDateKR(tx.tx_date)}</strong> · <strong>${Utils.formatVND(tx.amount)}</strong> (${tx.memo || '메모 없음'})
+            </div>
+            <div class="form-group full-width">
+                <label>새 카테고리 선택</label>
+                <select id="quick-change-cat" style="font-size:0.95rem;padding:8px 12px;">
+                    ${filtered.map(c => `<option value="${c.id}" ${String(c.id) === String(tx.category_id) ? 'selected' : ''}>${c.icon || '📌'} ${c.name}</option>`).join('')}
+                    <option value="DUES_CONVERT" style="color:#fbbf24;font-weight:700;">🎮 [게임회비로 분리 이전 (가계부 제외)]</option>
+                </select>
+            </div>
+        `, `
+            <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
+            <button class="btn btn-primary" id="btn-save-quick-cat">변경 저장</button>
+        `);
+
+        document.getElementById('btn-save-quick-cat')?.addEventListener('click', async () => {
+            const newCatId = document.getElementById('quick-change-cat')?.value;
+            if (!newCatId) return;
+
+            if (newCatId === 'DUES_CONVERT') {
+                await Store.convertPersonalTxToGameDues(tx);
+                Utils.toast('🎮 게임회비로 분리 이전되었습니다!', 'success');
+            } else {
+                await Store.updateTransaction(tx.id, { category_id: Number(newCatId) });
+                Utils.toast('카테고리가 변경되었습니다!', 'success');
+            }
+            Modal.close();
+            await PersonalPage.loadTransactions();
+            await PersonalPage.refreshSummary();
+        });
+    },
+
+    /** 긴 은행 전문/메모 원클릭 자동 정제 */
+    async quickCleanMemo(txId) {
+        const tx = (this.cachedTransactions || []).find(t => String(t.id) === String(txId));
+        if (!tx) return;
+
+        let raw = String(tx.memo || '').trim();
+        // VNPAY, QR코드 중복 번호, URL, 슬래시 중복 정리
+        let cleaned = raw.replace(/VNPAY\s+payment\s+by\s+scanning\s+QR\s+code\s*:\s*/gi, '')
+                         .replace(/([A-Z0-9]{10,})\s*\/\s*\1/g, '$1')
+                         .replace(/\b(TRANSFER|TRANSFERRING|CK|MB|IB)\b/gi, '')
+                         .replace(/[\/\-_]{2,}/g, '/')
+                         .replace(/\s+/g, ' ')
+                         .trim();
+
+        if (!cleaned || cleaned === '/') cleaned = '간편결제';
+
+        const ok = confirm(`메모를 깔끔하게 정제할까요?\n\n이전: "${raw}"\n이후: "${cleaned}"`);
+        if (!ok) return;
+
+        await Store.updateTransaction(tx.id, { memo: cleaned });
+        Utils.toast('메모가 정제되었습니다!', 'success');
+        await this.loadTransactions();
+    },
+
+    /** 메모 직접 빠른 수정 */
+    async quickEditMemo(txId) {
+        const tx = (this.cachedTransactions || []).find(t => String(t.id) === String(txId));
+        if (!tx) return;
+
+        const newMemo = prompt('메모를 수정하세요 (불필요하면 내용을 지우고 확인):', tx.memo || '');
+        if (newMemo === null) return;
+
+        await Store.updateTransaction(tx.id, { memo: newMemo.trim() });
+        Utils.toast('메모가 수정되었습니다!', 'success');
+        await this.loadTransactions();
+    },
+
+    /** 중복 의심 거래 (동일 날짜 + 동일 금액 2건 이상) 필터링 */
+    async filterDuplicates() {
+        const allTx = await Store.getTransactions({ limit: 1000 });
+        const map = {};
+
+        allTx.forEach(t => {
+            const key = `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}`;
+            if (!map[key]) map[key] = [];
+            map[key].push(t);
+        });
+
+        // 2건 이상인 키만 추출
+        const dupKeys = new Set(Object.keys(map).filter(k => map[k].length >= 2));
+        const dupTxList = allTx.filter(t => dupKeys.has(`${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}`));
+
+        if (dupTxList.length === 0) {
+            Utils.toast('동일한 날짜와 금액을 가진 중복 의심 거래가 없습니다! 👍', 'success');
+            return;
+        }
+
+        Utils.toast(`⚠️ 중복 의심 거래 총 ${dupTxList.length}건을 필터링했습니다. 확인 후 불필요한 건을 삭제하세요.`, 'info');
+
+        // 날짜/금액순으로 묶어서 정렬
+        dupTxList.sort((a, b) => {
+            const dComp = String(b.tx_date).localeCompare(String(a.tx_date));
+            if (dComp !== 0) return dComp;
+            return Utils.parseAmount(b.amount) - Utils.parseAmount(a.amount);
+        });
+
+        this.renderCategoryBreakdown(dupTxList);
+        const tbody = document.getElementById('tx-table-body');
+        if (tbody) {
+            let hasZeroTx = false;
+            this.cachedTransactions = dupTxList;
+            tbody.innerHTML = dupTxList.map(tx => {
+                const isIncome = String(tx.type).trim().toLowerCase() === 'income';
+                const methodLabel = tx.payment_method === 'cash' ? '💵 현금' : '💳 계좌이체';
+                const methodClass = tx.payment_method === 'cash' ? 'badge-amber' : 'badge-indigo';
+                const typeBadge = isIncome ? '<span class="badge badge-income">수입</span>' : '<span class="badge badge-expense">지출</span>';
+                const colorClass = isIncome ? 'text-emerald' : 'text-rose';
+                const sign = isIncome ? '+' : '-';
+                const amt = Utils.parseAmount(tx.amount);
+
+                return `
+                <tr style="background:rgba(251,191,36,0.06);border-left:3px solid #fbbf24;" ondblclick="PersonalPage.editTx('${tx.id}')">
+                    <td style="text-align:center" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="tx-cb" data-id="${tx.id}" data-amount="${amt}" style="cursor:pointer;width:16px;height:16px">
+                    </td>
+                    <td style="white-space:nowrap;font-weight:500">${Utils.formatDateTimeKR(tx.tx_date, tx.created_at)}</td>
+                    <td>${typeBadge}</td>
+                    <td><span class="badge ${methodClass}" style="font-size:0.75rem;padding:2px 8px">${methodLabel}</span></td>
+                    <td onclick="event.stopPropagation()">
+                        <button class="btn btn-ghost btn-sm" onclick="PersonalPage.quickEditCategory('${tx.id}')" style="padding:2px 6px;font-size:0.78rem;">
+                            ${tx.personal_categories?.icon || '💰'} ${Utils.escapeHtml(tx.personal_categories?.name || '기타')} ▾
+                        </button>
+                    </td>
+                    <td style="text-align:right;font-weight:700" class="${colorClass}">${sign}${Utils.formatVND(tx.amount)}</td>
+                    <td class="text-secondary" onclick="event.stopPropagation()">
+                        <span style="color:#fbbf24;font-size:0.75rem;font-weight:700;">[중복의심]</span> ${Utils.escapeHtml(tx.memo || '—')}
+                    </td>
+                    <td style="white-space:nowrap" onclick="event.stopPropagation()">
+                        <button class="btn btn-icon btn-sm" onclick="PersonalPage.editTx('${tx.id}')" title="수정">✏️</button>
+                        <button class="btn btn-danger btn-sm" onclick="PersonalPage.deleteTx('${tx.id}')" style="padding:2px 8px;font-size:0.75rem;" title="이 중복건 삭제">🗑️ 삭제</button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+            this.updateBulkDeleteButton();
+        }
     },
 
     selectZeroTx() {
