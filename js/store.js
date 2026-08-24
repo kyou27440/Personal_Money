@@ -7,14 +7,15 @@ if (typeof supabase === 'undefined' || typeof supabase.from !== 'function') {
 
 const DEFAULT_CATEGORIES = [
     { id: 1, name: '식비', type: 'expense', icon: '🍚', sort_order: 1, is_active: true },
-    { id: 2, name: '교통비', type: 'expense', icon: '🚗', sort_order: 2, is_active: true },
-    { id: 3, name: '쇼핑', type: 'expense', icon: '🛍️', sort_order: 3, is_active: true },
-    { id: 4, name: '주거/통신', type: 'expense', icon: '🏠', sort_order: 4, is_active: true },
-    { id: 5, name: '취미/유흥', type: 'expense', icon: '🎮', sort_order: 5, is_active: true },
-    { id: 6, name: '기타 지출', type: 'expense', icon: '💸', sort_order: 6, is_active: true },
-    { id: 7, name: '급여/월급', type: 'income', icon: '💵', sort_order: 1, is_active: true },
-    { id: 8, name: '부수입', type: 'income', icon: '💰', sort_order: 2, is_active: true },
-    { id: 9, name: '기타 수입', type: 'income', icon: '🎁', sort_order: 3, is_active: true }
+    { id: 2, name: '담배', type: 'expense', icon: '🚬', sort_order: 2, is_active: true },
+    { id: 3, name: '교통비', type: 'expense', icon: '🚗', sort_order: 3, is_active: true },
+    { id: 4, name: '쇼핑', type: 'expense', icon: '🛍️', sort_order: 4, is_active: true },
+    { id: 5, name: '주거/통신', type: 'expense', icon: '🏠', sort_order: 5, is_active: true },
+    { id: 6, name: '취미/유흥', type: 'expense', icon: '🎮', sort_order: 6, is_active: true },
+    { id: 7, name: '기타 지출', type: 'expense', icon: '💸', sort_order: 7, is_active: true },
+    { id: 8, name: '급여/월급', type: 'income', icon: '💵', sort_order: 1, is_active: true },
+    { id: 9, name: '부수입', type: 'income', icon: '💰', sort_order: 2, is_active: true },
+    { id: 10, name: '기타 수입', type: 'income', icon: '🎁', sort_order: 3, is_active: true }
 ];
 
 const Store = {
