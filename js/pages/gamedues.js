@@ -339,6 +339,7 @@ const GameDuesPage = {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     async afterRender() {
+        this.updateLedgerSyncBanner();
         this.renderRoundsFeed();
         this.renderIncomeTable(this._incomeList);
         this.renderExpenseTable(this._expenseList);
@@ -1336,12 +1337,108 @@ const GameDuesPage = {
         setHTML('badge-expense', `<span style="background:rgba(248,113,113,0.15);color:#fb7185;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${this._expenseList.length}</span>`);
         setHTML('badge-members', `<span style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${members.length}명</span>`);
 
+        // 가계부 지출 대조 배너 업데이트
+        this.updateLedgerSyncBanner();
+
         // 테이블 & 모임 피드
         this.renderRoundsFeed();
         this.filterIncome();
         this.filterExpense();
         this.renderMemberGrid();
     },
+
+    /** 상단 가계부 지출 대조 배너 실시간 업데이트 */
+    updateLedgerSyncBanner() {
+        const statText = document.getElementById('ledger-sync-stat-text');
+        const actionArea = document.getElementById('ledger-sync-action-btn-area');
+        if (!statText) return;
+
+        let totalExpCount = this._expenseList.length;
+        let matchedCount = 0;
+        let unrecordedList = [];
+
+        this._expenseList.forEach(exp => {
+            const expDateStr = Utils.formatDate(exp.tx_date);
+            const amt = Utils.parseAmount(exp.amount);
+            const matched = (this._personalTxList || []).find(t => {
+                return String(t.type).toLowerCase() === 'expense' &&
+                       Utils.formatDate(t.tx_date) === expDateStr &&
+                       Utils.parseAmount(t.amount) === amt;
+            });
+            if (matched) {
+                matchedCount++;
+            } else {
+                unrecordedList.push(exp);
+            }
+        });
+
+        if (totalExpCount === 0) {
+            statText.innerHTML = `등록된 모임 지출이 없습니다.`;
+            if (actionArea) actionArea.innerHTML = '';
+            return;
+        }
+
+        const unrecordedCount = unrecordedList.length;
+        if (unrecordedCount === 0) {
+            statText.innerHTML = `총 <strong style="color:#fff">${totalExpCount}건</strong>의 모임 지출이 <strong style="color:#34d399">내 가계부에 100% 모두 반영됨 ✅</strong>`;
+            if (actionArea) actionArea.innerHTML = `<span class="badge badge-income" style="font-size:0.75rem;padding:3px 8px;">완벽 일치</span>`;
+        } else {
+            const unrecordedAmt = unrecordedList.reduce((s, e) => s + Utils.parseAmount(e.amount), 0);
+            statText.innerHTML = `총 ${totalExpCount}건 중 <strong style="color:#34d399">${matchedCount}건 반영</strong> / <strong style="color:#fbbf24">${unrecordedCount}건 (${Utils.formatVND(unrecordedAmt)}) 미반영 ⚠️</strong>`;
+            if (actionArea) {
+                actionArea.innerHTML = `
+                    <button class="btn btn-primary btn-sm" onclick="GameDuesPage.bulkCopyUnrecordedExpenses()" style="background:#f59e0b;color:#000;font-weight:700;font-size:0.75rem;padding:3px 9px;">
+                        ⚡ 미반영 ${unrecordedCount}건 내 가계부에 일괄 등록
+                    </button>
+                `;
+            }
+        }
+    },
+
+    /** 미반영된 모든 게임회비 지출을 개인 가계부에 일괄 등록 */
+    async bulkCopyUnrecordedExpenses() {
+        const unrecordedList = [];
+        this._expenseList.forEach(exp => {
+            const expDateStr = Utils.formatDate(exp.tx_date);
+            const amt = Utils.parseAmount(exp.amount);
+            const matched = (this._personalTxList || []).find(t => {
+                return String(t.type).toLowerCase() === 'expense' &&
+                       Utils.formatDate(t.tx_date) === expDateStr &&
+                       Utils.parseAmount(t.amount) === amt;
+            });
+            if (!matched) unrecordedList.push(exp);
+        });
+
+        if (unrecordedList.length === 0) {
+            Utils.toast('가계부에 등록할 미반영 지출이 없습니다.', 'info');
+            return;
+        }
+
+        const totalAmt = unrecordedList.reduce((s, e) => s + Utils.parseAmount(e.amount), 0);
+        const ok = confirm(`가계부에 아직 기록되지 않은 ${unrecordedList.length}건 (총 ${Utils.formatVND(totalAmt)})의 모임 지출을\n[내 개인 가계부]에 일괄 등록할까요?`);
+        if (!ok) return;
+
+        const categories = await Store.getCategories();
+        for (const exp of unrecordedList) {
+            const isScreen = /(?:스크린|골프|screen|golf|라운딩|round)/i.test(`${exp.title} ${exp.memo}`);
+            const isMeal = /(?:식사|회식|밥|술|식당|저녁|점심|고기|맥주|meal|dinner)/i.test(`${exp.title} ${exp.memo}`);
+            let cat = categories.find(c => isScreen ? /취미|레저|문화|골프/i.test(c.name) : (isMeal ? /식비|외식|식사/i.test(c.name) : false));
+            if (!cat) cat = categories.find(c => /기타|생활/i.test(c.name)) || categories[0];
+
+            await Store.addTransaction({
+                tx_date: exp.tx_date,
+                type: 'expense',
+                amount: exp.amount,
+                category_id: cat ? cat.id : null,
+                payment_method: 'account',
+                memo: `[게임회비 결제] ${exp.title || '지출'}${exp.memo ? ' (' + exp.memo + ')' : ''}`
+            });
+        }
+
+        Utils.toast(`🎉 총 ${unrecordedList.length}건이 개인 가계부 지출로 일괄 등록되었습니다!`, 'success');
+        await this.refresh();
+    }
 };
 
 Router.register('gamedues', GameDuesPage);
+
