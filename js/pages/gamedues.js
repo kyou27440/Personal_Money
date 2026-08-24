@@ -172,6 +172,7 @@ const GameDuesPage = {
                 <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                     <div class="dues-section-title">💰 게임회비 입금 내역</div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button class="btn btn-danger btn-sm hidden" id="btn-bulk-revert-income" style="font-weight:700;">💰 선택 항목 가계부로 되돌리기</button>
                         <button class="btn btn-ghost btn-sm" id="btn-sync-from-ledger" style="border-color:#fbbf24;color:#fbbf24;font-weight:700;">⚡ 가계부에서 회비 자동 가져오기</button>
                         <button class="btn btn-primary btn-sm" id="btn-add-income">+ 입금 등록</button>
                     </div>
@@ -194,15 +195,18 @@ const GameDuesPage = {
                     <table class="dues-table">
                         <thead>
                             <tr>
+                                <th style="width:36px;text-align:center;">
+                                    <input type="checkbox" id="inc-select-all" style="cursor:pointer;">
+                                </th>
                                 <th>날짜</th>
                                 <th>입금자 이름</th>
                                 <th style="text-align:right">입금액</th>
                                 <th>메모</th>
-                                <th style="width:80px">작업</th>
+                                <th style="width:140px;text-align:center;">작업</th>
                             </tr>
                         </thead>
                         <tbody id="income-tbody">
-                            <tr><td colspan="5" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -213,7 +217,8 @@ const GameDuesPage = {
             <div class="dues-panel" id="panel-expense">
                 <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                     <div class="dues-section-title">💸 게임회비 지출 내역</div>
-                    <div style="display:flex;gap:6px;">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button class="btn btn-danger btn-sm hidden" id="btn-bulk-revert-expense" style="font-weight:700;">💰 선택 항목 가계부로 되돌리기</button>
                         <button class="btn btn-primary btn-sm" id="btn-add-expense">+ 지출 등록</button>
                     </div>
                 </div>
@@ -234,18 +239,23 @@ const GameDuesPage = {
                     <table class="dues-table">
                         <thead>
                             <tr>
+                                <th style="width:36px;text-align:center;">
+                                    <input type="checkbox" id="exp-select-all" style="cursor:pointer;">
+                                </th>
                                 <th>날짜</th>
                                 <th>내용</th>
                                 <th style="text-align:right">지출액</th>
                                 <th>메모</th>
-                                <th style="width:80px">작업</th>
+                                <th style="width:140px;text-align:center;">작업</th>
                             </tr>
                         </thead>
                         <tbody id="expense-tbody">
-                            <tr><td colspan="5" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
                         </tbody>
                     </table>
                 </div>
+                <div id="expense-total-bar" style="text-align:right;padding:10px 4px;font-size:0.85rem;color:var(--text-muted)"></div>
+            </div>
                 <div id="expense-total-bar" style="text-align:right;padding:10px 4px;font-size:0.85rem;color:var(--text-muted)"></div>
             </div>
 
@@ -276,6 +286,8 @@ const GameDuesPage = {
         document.getElementById('btn-filter-income-apply')?.addEventListener('click', () => this.filterIncome());
         document.getElementById('btn-filter-expense-apply')?.addEventListener('click', () => this.filterExpense());
         document.getElementById('btn-sync-from-ledger')?.addEventListener('click', () => this.syncFromLedger());
+        document.getElementById('btn-bulk-revert-income')?.addEventListener('click', () => this.bulkRevertToPersonalLedger(true));
+        document.getElementById('btn-bulk-revert-expense')?.addEventListener('click', () => this.bulkRevertToPersonalLedger(false));
 
         // 입금 기간 숏컷
         document.getElementById('btn-inc-all-time')?.addEventListener('click', () => {
@@ -383,8 +395,12 @@ const GameDuesPage = {
         const totalBar = document.getElementById('income-total-bar');
         if (!tbody) return;
 
+        const selectAllCb = document.getElementById('inc-select-all');
+        if (selectAllCb) selectAllCb.checked = false;
+        this._updateBulkRevertButton('income');
+
         if (!list || list.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">입금 내역이 없습니다</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">입금 내역이 없습니다</td></tr>';
             if (totalBar) totalBar.textContent = '';
             return;
         }
@@ -399,11 +415,14 @@ const GameDuesPage = {
 
             return `
             <tr>
+                <td style="text-align:center;">
+                    <input type="checkbox" class="inc-cb" data-id="${r.id}" style="cursor:pointer;width:16px;height:16px;">
+                </td>
                 <td style="white-space:nowrap;font-weight:500">${dateStr}</td>
                 <td>
                     <div style="display:flex;align-items:center;gap:8px">
-                        <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);
-                                    display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fff;flex-shrink:0">
+                        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);
+                                    display:flex;align-items:center;justify-content:center;font-size:0.68rem;font-weight:700;color:#fff;flex-shrink:0">
                             ${initials}
                         </div>
                         <span style="font-weight:600">${name}</span>
@@ -411,7 +430,8 @@ const GameDuesPage = {
                 </td>
                 <td class="amount-income">+${Utils.formatVND(amt)}</td>
                 <td style="color:var(--text-muted)">${Utils.escapeHtml(r.memo || '')}</td>
-                <td>
+                <td style="white-space:nowrap;text-align:center;">
+                    <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${r.id}', true)" style="padding:2px 6px;font-size:0.75rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="이 입금을 다시 개인 가계부로 환원">💰가계부로</button>
                     <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteIncome('${r.id}')" title="삭제">🗑️</button>
                 </td>
             </tr>`;
@@ -420,6 +440,17 @@ const GameDuesPage = {
         if (totalBar) {
             totalBar.innerHTML = `조회 합계: <strong style="color:#34d399">${Utils.formatVND(total)}</strong> (${list.length}건)`;
         }
+
+        // 체크박스 리스너
+        tbody.querySelectorAll('.inc-cb').forEach(cb => {
+            cb.addEventListener('change', () => this._updateBulkRevertButton('income'));
+        });
+        if (selectAllCb) {
+            selectAllCb.onchange = (e) => {
+                tbody.querySelectorAll('.inc-cb').forEach(cb => cb.checked = e.target.checked);
+                this._updateBulkRevertButton('income');
+            };
+        }
     },
 
     renderExpenseTable(list) {
@@ -427,8 +458,12 @@ const GameDuesPage = {
         const totalBar = document.getElementById('expense-total-bar');
         if (!tbody) return;
 
+        const selectAllCb = document.getElementById('exp-select-all');
+        if (selectAllCb) selectAllCb.checked = false;
+        this._updateBulkRevertButton('expense');
+
         if (!list || list.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">지출 내역이 없습니다</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">지출 내역이 없습니다</td></tr>';
             if (totalBar) totalBar.textContent = '';
             return;
         }
@@ -441,11 +476,15 @@ const GameDuesPage = {
 
             return `
             <tr>
+                <td style="text-align:center;">
+                    <input type="checkbox" class="exp-cb" data-id="${r.id}" style="cursor:pointer;width:16px;height:16px;">
+                </td>
                 <td style="white-space:nowrap;font-weight:500">${dateStr}</td>
                 <td style="font-weight:600">${Utils.escapeHtml(r.title || '')}</td>
                 <td class="amount-expense">-${Utils.formatVND(amt)}</td>
                 <td style="color:var(--text-muted)">${Utils.escapeHtml(r.memo || '')}</td>
-                <td>
+                <td style="white-space:nowrap;text-align:center;">
+                    <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.revertToPersonalLedger('${r.id}', false)" style="padding:2px 6px;font-size:0.75rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="이 지출을 다시 개인 가계부로 환원">💰가계부로</button>
                     <button class="btn btn-icon btn-sm" onclick="GameDuesPage.deleteExpense('${r.id}')" title="삭제">🗑️</button>
                 </td>
             </tr>`;
@@ -454,6 +493,70 @@ const GameDuesPage = {
         if (totalBar) {
             totalBar.innerHTML = `조회 합계: <strong style="color:#fb7185">${Utils.formatVND(total)}</strong> (${list.length}건)`;
         }
+
+        tbody.querySelectorAll('.exp-cb').forEach(cb => {
+            cb.addEventListener('change', () => this._updateBulkRevertButton('expense'));
+        });
+        if (selectAllCb) {
+            selectAllCb.onchange = (e) => {
+                tbody.querySelectorAll('.exp-cb').forEach(cb => cb.checked = e.target.checked);
+                this._updateBulkRevertButton('expense');
+            };
+        }
+    },
+
+    _updateBulkRevertButton(type = 'income') {
+        const checked = document.querySelectorAll(`.${type === 'income' ? 'inc' : 'exp'}-cb:checked`);
+        const btn = document.getElementById(`btn-bulk-revert-${type}`);
+        if (btn) {
+            if (checked.length > 0) {
+                btn.classList.remove('hidden');
+                btn.textContent = `💰 선택 ${checked.length}건 가계부로 되돌리기`;
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+    },
+
+    /** 단일 회비 항목을 개인 가계부로 되돌리기 */
+    async revertToPersonalLedger(id, isIncome = true) {
+        const list = isIncome ? this._incomeList : this._expenseList;
+        const item = list.find(r => String(r.id) === String(id));
+        if (!item) return;
+
+        const title = isIncome ? `${item.member_name} 입금 (${Utils.formatVND(item.amount)})` : `${item.title || '지출'} (${Utils.formatVND(item.amount)})`;
+        const ok = confirm(`[${title}]\n이 내역을 게임회비 관리에서 제외하고, 다시 [개인 가계부]로 되돌릴까요?`);
+        if (!ok) return;
+
+        const success = await Store.convertGameDuesToPersonalTx(item, isIncome);
+        if (success) {
+            Utils.toast('💰 개인 가계부로 성공적으로 복원되었습니다!', 'success');
+            await this.refresh();
+        }
+    },
+
+    /** 선택 항목들 일괄 개인 가계부로 되돌리기 */
+    async bulkRevertToPersonalLedger(isIncome = true) {
+        const type = isIncome ? 'income' : 'expense';
+        const checked = document.querySelectorAll(`.${isIncome ? 'inc' : 'exp'}-cb:checked`);
+        const ids = Array.from(checked).map(cb => cb.dataset.id);
+        if (ids.length === 0) return;
+
+        const ok = confirm(`선택한 ${ids.length}건의 내역을 게임회비에서 제외하고, [개인 가계부]로 일괄 되돌릴까요?`);
+        if (!ok) return;
+
+        const list = isIncome ? this._incomeList : this._expenseList;
+        let count = 0;
+        for (const id of ids) {
+            const item = list.find(r => String(r.id) === String(id));
+            if (item) {
+                await Store.convertGameDuesToPersonalTx(item, isIncome);
+                count++;
+            }
+        }
+
+        Utils.toast(`🎉 총 ${count}건이 개인 가계부로 복원되었습니다!`, 'success');
+        await this.refresh();
     },
 
     renderMemberGrid() {
