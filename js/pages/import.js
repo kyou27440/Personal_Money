@@ -318,7 +318,7 @@ const ImportPage = {
         if (!this._rawRows) return;
 
         const mapping = this._currentMapping || {};
-        const rows = [];
+        const rawRows = [];
 
         this._rawRows.forEach((row, ridx) => {
             const dateVal = mapping.date >= 0 ? row[mapping.date] : '';
@@ -335,7 +335,7 @@ const ImportPage = {
             if (incAmt <= 0 && expAmt <= 0) return;
 
             if (incAmt > 0) {
-                rows.push({
+                rawRows.push({
                     _idx: `excel_${ridx}_inc`,
                     date: parsedDate,
                     type: 'income',
@@ -346,7 +346,7 @@ const ImportPage = {
                 });
             }
             if (expAmt > 0) {
-                rows.push({
+                rawRows.push({
                     _idx: `excel_${ridx}_exp`,
                     date: parsedDate,
                     type: 'expense',
@@ -358,8 +358,17 @@ const ImportPage = {
             }
         });
 
-        this._rows = rows;
-        this._checkDuplicates().then(() => this.renderPreview());
+        // ① 배치 내 자체 중복 제거 (날짜+금액+구분 동일)
+        const { unique, batchDupCount } = this._deduplicateRows(rawRows);
+        this._rows = unique;
+
+        this._checkDuplicates().then(dbDupCount => {
+            const total = batchDupCount + dbDupCount;
+            this.renderPreview();
+            if (total > 0) {
+                Utils.toast(`🗑️ 중복 ${total}건 자동 제거 (파일내 ${batchDupCount}건 + DB중복 ${dbDupCount}건)`, 'info');
+            }
+        });
     },
 
     async handleImageFiles(files) {
@@ -420,9 +429,17 @@ const ImportPage = {
                 return;
             }
 
-            this._rows = allRows;
-            await this._checkDuplicates();
+            // ① 배치 내 자체 중복 제거
+            const { unique, batchDupCount } = this._deduplicateRows(allRows);
+            this._rows = unique;
+
+            const dbDupCount = await this._checkDuplicates();
             this.renderPreview();
+
+            const total = batchDupCount + dbDupCount;
+            if (total > 0) {
+                Utils.toast(`🗑️ 중복 ${total}건 자동 제거 (이미지내 ${batchDupCount}건 + DB중복 ${dbDupCount}건)`, 'info');
+            }
 
         } catch(e) {
             this.hideProgress('image');
@@ -489,8 +506,39 @@ const ImportPage = {
         return rows;
     },
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 중복 제거 유틸
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /**
+     * 배치(업로드한 파일) 내 자체 중복 제거
+     * 기준: 날짜 + 금액 + 구분(입금/출금) 동일
+     */
+    _deduplicateRows(rows) {
+        const seen = new Set();
+        const unique = [];
+        let batchDupCount = 0;
+
+        rows.forEach(row => {
+            const key = `${row.date}_${row.amount}_${row.type}`;
+            if (seen.has(key)) {
+                batchDupCount++;
+            } else {
+                seen.add(key);
+                unique.push(row);
+            }
+        });
+
+        return { unique, batchDupCount };
+    },
+
+    /**
+     * DB(Supabase) 기존 내역과 비교해 중복 자동 제거
+     * 기준: 날짜 + 금액 + 구분 동일
+     * 반환: 제거된 건수
+     */
     async _checkDuplicates() {
-        if (this._rows.length === 0) return;
+        if (this._rows.length === 0) return 0;
 
         try {
             const dates = this._rows.map(r => r.date).filter(Boolean).sort();
@@ -502,12 +550,17 @@ const ImportPage = {
                 existing.map(t => `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).toLowerCase()}`)
             );
 
-            this._rows.forEach(row => {
+            const before = this._rows.length;
+            this._rows = this._rows.filter(row => {
                 const key = `${row.date}_${row.amount}_${row.type}`;
-                row.isDup = existingSet.has(key);
+                return !existingSet.has(key);
             });
+            const dbDupCount = before - this._rows.length;
+
+            return dbDupCount;
         } catch(e) {
             console.warn('중복 체크 실패:', e);
+            return 0;
         }
     },
 
@@ -528,15 +581,12 @@ const ImportPage = {
         tbody.innerHTML = this._rows.map((row, i) => {
             const isIncome = row.type === 'income';
             const amtClass = isIncome ? 'amount-income' : 'amount-expense';
-            const dupBadge = row.isDup
-                ? '<span class="badge-dup">⚠️ 중복</span>'
-                : '<span class="badge-new">✅ 신규</span>';
 
             return `
-            <tr data-idx="${i}" class="${row.isDup ? 'skipped' : ''}">
+            <tr data-idx="${i}">
                 <td>
                     <input type="checkbox" class="import-row-cb" data-idx="${i}"
-                        ${row.isDup ? '' : 'checked'}
+                        checked
                         style="cursor:pointer;width:15px;height:15px"
                         onchange="ImportPage._onRowCheck(${i}, this.checked)">
                 </td>
@@ -573,7 +623,7 @@ const ImportPage = {
                         onchange="ImportPage._onFieldChange(${i},'memo',this.value)"
                         style="min-width:120px;max-width:200px">
                 </td>
-                <td>${dupBadge}</td>
+                <td><span class="badge-new">✅ 신규</span></td>
             </tr>
             `;
         }).join('');
@@ -605,18 +655,6 @@ const ImportPage = {
         });
         const selectAll = document.getElementById('import-select-all');
         if (selectAll) selectAll.checked = checked;
-        this.updateSaveSummary();
-    },
-
-    skipDuplicates() {
-        document.querySelectorAll('.import-row-cb').forEach(cb => {
-            const idx = parseInt(cb.dataset.idx);
-            if (this._rows[idx] && this._rows[idx].isDup) {
-                cb.checked = false;
-                const row = document.querySelector(`tr[data-idx="${idx}"]`);
-                if (row) row.classList.add('skipped');
-            }
-        });
         this.updateSaveSummary();
     },
 
@@ -698,14 +736,12 @@ const ImportPage = {
             Utils.toast(`${successCount}건이 가계부에 등록되었습니다!`, 'success');
 
             checked.forEach(cb => {
-                const idx = parseInt(cb.dataset.idx);
-                if (this._rows[idx]) this._rows[idx].isDup = true;
                 cb.checked = false;
-                const tr = document.querySelector(`tr[data-idx="${idx}"]`);
+                const tr = document.querySelector(`tr[data-idx="${cb.dataset.idx}"]`);
                 if (tr) {
                     tr.classList.add('skipped');
                     const badge = tr.querySelector('td:last-child');
-                    if (badge) badge.innerHTML = '<span class="badge-dup">✅ 등록됨</span>';
+                    if (badge) badge.innerHTML = '<span class="badge-new" style="background:rgba(16,185,129,0.15);color:#34d399">✅ 등록됨</span>';
                 }
             });
 
