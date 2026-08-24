@@ -128,56 +128,42 @@ const GameDuesPage = {
         return `
         <div style="width:100%;margin:0 auto;">
 
-            <!-- 🌟 4열 초슬림 프리미엄 요약 카드 그리드 -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:10px;margin-bottom:12px;">
+            <!-- 🌟 3열 초슬림 프리미엄 요약 카드 그리드 -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:12px;margin-bottom:12px;">
                 <!-- 카드 1: 총 입금 -->
-                <div style="background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(5,150,105,0.06));border:1px solid rgba(52,211,153,0.3);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                <div style="background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(5,150,105,0.06));border:1px solid rgba(52,211,153,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
                     <div style="display:flex;align-items:center;gap:10px;">
-                        <div style="width:34px;height:34px;border-radius:8px;background:rgba(52,211,153,0.18);display:flex;align-items:center;justify-content:center;font-size:1.15rem;">💰</div>
+                        <div style="width:36px;height:36px;border-radius:8px;background:rgba(52,211,153,0.18);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">💰</div>
                         <div>
                             <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">총 입금 (멤버)</div>
-                            <div style="font-size:1.05rem;font-weight:800;color:#34d399;" id="dues-val-income">${Utils.formatVND(S.totalIncome)}</div>
+                            <div style="font-size:1.1rem;font-weight:800;color:#34d399;" id="dues-val-income">${Utils.formatVND(S.totalIncome)}</div>
                         </div>
                     </div>
-                    <span style="background:rgba(52,211,153,0.2);color:#34d399;font-size:0.75rem;font-weight:700;padding:2px 7px;border-radius:10px;">${this._incomeList.length}건</span>
+                    <span style="background:rgba(52,211,153,0.2);color:#34d399;font-size:0.75rem;font-weight:700;padding:2px 8px;border-radius:10px;">${this._incomeList.length}건</span>
                 </div>
 
                 <!-- 카드 2: 총 지출 -->
-                <div style="background:linear-gradient(135deg,rgba(244,63,94,0.12),rgba(225,29,72,0.06));border:1px solid rgba(251,113,133,0.3);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                <div style="background:linear-gradient(135deg,rgba(244,63,94,0.12),rgba(225,29,72,0.06));border:1px solid rgba(251,113,133,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
                     <div style="display:flex;align-items:center;gap:10px;">
-                        <div style="width:34px;height:34px;border-radius:8px;background:rgba(251,113,133,0.18);display:flex;align-items:center;justify-content:center;font-size:1.15rem;">💸</div>
+                        <div style="width:36px;height:36px;border-radius:8px;background:rgba(251,113,133,0.18);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">💸</div>
                         <div>
                             <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">총 모임 지출</div>
-                            <div style="font-size:1.05rem;font-weight:800;color:#fb7185;" id="dues-val-expense">${Utils.formatVND(S.totalExpense)}</div>
+                            <div style="font-size:1.1rem;font-weight:800;color:#fb7185;" id="dues-val-expense">${Utils.formatVND(S.totalExpense)}</div>
                         </div>
                     </div>
-                    <span style="background:rgba(248,113,113,0.2);color:#fb7185;font-size:0.75rem;font-weight:700;padding:2px 7px;border-radius:10px;">${this._expenseList.length}건</span>
+                    <span style="background:rgba(248,113,113,0.2);color:#fb7185;font-size:0.75rem;font-weight:700;padding:2px 8px;border-radius:10px;">${this._expenseList.length}건</span>
                 </div>
 
                 <!-- 카드 3: 현재 잔액 -->
-                <div style="background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(79,70,229,0.06));border:1px solid rgba(129,140,248,0.3);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                <div style="background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(79,70,229,0.06));border:1px solid rgba(129,140,248,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
                     <div style="display:flex;align-items:center;gap:10px;">
-                        <div style="width:34px;height:34px;border-radius:8px;background:rgba(129,140,248,0.18);display:flex;align-items:center;justify-content:center;font-size:1.15rem;">⚖️</div>
+                        <div style="width:36px;height:36px;border-radius:8px;background:rgba(129,140,248,0.18);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">⚖️</div>
                         <div>
                             <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">현재 정산 잔액</div>
-                            <div style="font-size:1.05rem;font-weight:800;color:#818cf8;" id="dues-val-balance">${Utils.formatVND(S.balance)}</div>
+                            <div style="font-size:1.1rem;font-weight:800;color:#818cf8;" id="dues-val-balance">${Utils.formatVND(S.balance)}</div>
                         </div>
                     </div>
-                    <span style="font-size:0.72rem;color:var(--text-muted);">수령 - 지출</span>
-                </div>
-
-                <!-- 카드 4: 1인당 회비 & 설정 -->
-                <div style="background:linear-gradient(135deg,rgba(245,158,11,0.12),rgba(217,119,6,0.06));border:1px solid rgba(251,191,36,0.3);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <div style="width:34px;height:34px;border-radius:8px;background:rgba(251,191,36,0.18);display:flex;align-items:center;justify-content:center;font-size:1.15rem;">👤</div>
-                        <div>
-                            <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">1인당 설정 회비</div>
-                            <div style="font-size:1.05rem;font-weight:800;color:#fbbf24;" id="disp-per-person">${Utils.formatVND(S.perPerson)}</div>
-                        </div>
-                    </div>
-                    <button class="btn btn-ghost btn-sm" id="btn-dues-settings" style="padding:2px 7px;font-size:0.75rem;border-color:rgba(251,191,36,0.4);color:#fbbf24;" title="1인당 회비 금액 및 전체 인원 설정">
-                        ⚙️ 설정
-                    </button>
+                    <span style="font-size:0.75rem;color:var(--text-muted);background:rgba(255,255,255,0.05);padding:2px 7px;border-radius:6px;">수령 - 지출</span>
                 </div>
             </div>
 
