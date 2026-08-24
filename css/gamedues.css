@@ -1,129 +1,80 @@
 /* ============================================
-   CSS/GAMEDUES.CSS — 게임회비 관리 페이지 스타일
+   CSS/GAMEDUES.CSS — 게임회비 관리 슬림 & 와이드 컴팩트 디자인
    ============================================ */
 
-/* ─── 요약 카드 그리드 ─── */
-.dues-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 14px;
-    margin-bottom: 24px;
-}
-
-.dues-card {
+/* ─── 슬림 컴팩트 상단 요약 바 ─── */
+.dues-compact-topbar {
     background: var(--bg-card, #1e1e2e);
     border: 1px solid var(--border, rgba(255,255,255,0.08));
-    border-radius: 16px;
-    padding: 18px 20px;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.dues-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-}
-
-.dues-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    border-radius: 16px 16px 0 0;
-}
-
-.dues-card.income::before  { background: linear-gradient(90deg, #10b981, #34d399); }
-.dues-card.expense::before { background: linear-gradient(90deg, #f43f5e, #fb7185); }
-.dues-card.balance::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
-.dues-card.my-dues::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-
-.dues-card-icon {
-    font-size: 1.6rem;
-    margin-bottom: 10px;
-    display: block;
-}
-
-.dues-card-label {
-    font-size: 0.78rem;
-    color: var(--text-muted, #888);
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 6px;
-}
-
-.dues-card-value {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--text-primary, #fff);
-    letter-spacing: -0.02em;
-}
-
-.dues-card.income  .dues-card-value { color: #34d399; }
-.dues-card.expense .dues-card-value { color: #fb7185; }
-.dues-card.balance .dues-card-value { color: #818cf8; }
-.dues-card.my-dues .dues-card-value { color: #fbbf24; }
-
-.dues-card-sub {
-    font-size: 0.76rem;
-    color: var(--text-muted, #888);
-    margin-top: 4px;
-}
-
-/* ─── 설정 배너 ─── */
-.dues-settings-bar {
-    background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.08));
-    border: 1px solid rgba(99,102,241,0.2);
     border-radius: 12px;
-    padding: 14px 18px;
-    margin-bottom: 20px;
+    padding: 10px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 12px;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
 }
 
-.dues-settings-info {
-    font-size: 0.88rem;
-    color: var(--text-secondary, #bbb);
+.dues-top-metrics {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 18px;
     flex-wrap: wrap;
 }
 
-.dues-settings-info strong {
-    color: #818cf8;
+.dues-metric-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.82rem;
 }
 
-.dues-settings-info .sep {
-    color: var(--text-muted, #555);
+.dues-metric-label {
+    color: var(--text-muted, #888);
+    font-weight: 500;
 }
 
-/* ─── 탭 ─── */
+.dues-metric-val {
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
+}
+
+.dues-metric-val.income { color: #34d399; }
+.dues-metric-val.expense { color: #fb7185; }
+.dues-metric-val.balance { color: #818cf8; }
+.dues-metric-val.my-dues { color: #fbbf24; }
+
+.dues-metric-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255,255,255,0.1);
+}
+
+/* ─── 슬림 탭 ─── */
 .dues-tabs {
     display: flex;
-    gap: 6px;
-    margin-bottom: 20px;
+    gap: 4px;
+    margin-bottom: 12px;
     background: var(--bg-card, #1e1e2e);
-    border-radius: 12px;
-    padding: 5px;
+    border-radius: 10px;
+    padding: 3px;
     border: 1px solid var(--border, rgba(255,255,255,0.08));
 }
 
 .dues-tab-btn {
     flex: 1;
-    padding: 9px 14px;
+    padding: 7px 12px;
     border: none;
-    border-radius: 8px;
+    border-radius: 7px;
     background: transparent;
     color: var(--text-muted, #888);
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: 0.82rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     white-space: nowrap;
 }
 
@@ -135,7 +86,30 @@
 .dues-tab-btn.active {
     background: linear-gradient(135deg, #6366f1, #8b5cf6);
     color: #fff;
-    box-shadow: 0 3px 12px rgba(99,102,241,0.3);
+    box-shadow: 0 2px 8px rgba(99,102,241,0.25);
+}
+
+/* ─── 슬림 필터 바 ─── */
+.dues-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 6px 12px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.dues-filter-bar input[type="date"],
+.dues-filter-bar input[type="text"] {
+    background: var(--bg-card, #1e1e2e);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    color: #fff;
 }
 
 /* ─── 탭 패널 ─── */
@@ -145,7 +119,22 @@
 
 .dues-panel.active {
     display: block;
-    animation: fadeSlideUp 0.2s ease;
+    animation: fadeSlideUp 0.15s ease;
+}
+
+/* ─── 모임 카드 (슬림 와이드) ─── */
+.dues-round-card {
+    background: var(--bg-card, #1e1e2e);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: border-color 0.2s;
+}
+
+.dues-round-card:hover {
+    border-color: rgba(99,102,241,0.3);
 }
 
 @keyframes fadeSlideUp {
