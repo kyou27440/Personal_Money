@@ -120,6 +120,7 @@ const GameDuesPage = {
         this._settings = this._loadSettings();
         this._incomeList  = await this._loadIncome();
         this._expenseList = await this._loadExpense();
+        this._personalTxList = await Store.getTransactions({ limit: 1000 });
 
         const S = this._calcSummary();
         const members = this._getMemberStats();
@@ -566,7 +567,7 @@ const GameDuesPage = {
                 `;
             }).join('') : '<div style="color:var(--text-muted);font-size:0.78rem;padding:4px 0;">입금 내역 없음</div>';
 
-            // 우측: 지출 내역 리스트 (수고비 포함)
+            // 우측: 지출 내역 리스트 (가계부 대조 뱃지 포함)
             let expRows = grp.expenses.map(exp => {
                 const text = `${exp.title || ''} ${exp.memo || ''}`.toLowerCase();
                 const amt = Utils.parseAmount(exp.amount);
@@ -576,12 +577,25 @@ const GameDuesPage = {
                     ? '<span class="badge badge-indigo" style="font-size:0.68rem;padding:1px 5px;">⛳ 스크린</span>'
                     : (isMeal ? '<span class="badge badge-amber" style="font-size:0.68rem;padding:1px 5px;">🍖 회식/식사</span>' : '<span class="badge badge-expense" style="font-size:0.68rem;padding:1px 5px;">기타</span>');
 
+                // 🔍 가계부 지출 대조 (날짜와 금액이 일치하는 지출이 가계부에 있는지 점검)
+                const expDateStr = Utils.formatDate(exp.tx_date);
+                const matchedPersonalTx = (this._personalTxList || []).find(t => {
+                    return String(t.type).toLowerCase() === 'expense' &&
+                           Utils.formatDate(t.tx_date) === expDateStr &&
+                           Utils.parseAmount(t.amount) === amt;
+                });
+
+                const ledgerBadge = matchedPersonalTx
+                    ? `<span class="badge" style="background:rgba(52,211,153,0.15);color:#34d399;font-size:0.65rem;padding:1px 5px;border:1px solid rgba(52,211,153,0.3);" title="내 개인 가계부에도 정상 등록되어 있음">✅ 가계부 반영됨</span>`
+                    : `<button class="btn btn-ghost btn-sm" onclick="GameDuesPage.copyExpenseToPersonalLedger('${exp.id}')" style="background:rgba(251,191,36,0.1);color:#fbbf24;font-size:0.65rem;padding:1px 5px;border:1px solid rgba(251,191,36,0.3);font-weight:700;" title="가계부에 지출 내역이 없음! 클릭 시 내 가계부 지출로 즉시 복사 등록">+ 가계부 미기록</button>`;
+
                 return `
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;gap:6px;"
                          ondblclick="GameDuesPage.openEditExpenseModal('${exp.id}')" title="더블클릭하여 금액/내용 수정">
-                        <div style="display:flex;align-items:center;gap:6px;overflow:hidden;">
+                        <div style="display:flex;align-items:center;gap:5px;overflow:hidden;flex-wrap:wrap;">
                             ${badgeTag}
                             <span style="font-weight:600;color:var(--text-primary);white-space:nowrap;">${Utils.escapeHtml(exp.title || '지출')}</span>
+                            ${ledgerBadge}
                             ${exp.memo ? `<span style="color:var(--text-muted);font-size:0.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${Utils.escapeHtml(exp.memo)}">(${Utils.escapeHtml(exp.memo)})</span>` : ''}
                         </div>
                         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">
@@ -763,13 +777,27 @@ const GameDuesPage = {
             const dateStr = Utils.formatDate(r.tx_date);
             const amt = Utils.parseAmount(r.amount);
 
+            // 🔍 가계부 지출 대조
+            const matchedPersonalTx = (this._personalTxList || []).find(t => {
+                return String(t.type).toLowerCase() === 'expense' &&
+                       Utils.formatDate(t.tx_date) === dateStr &&
+                       Utils.parseAmount(t.amount) === amt;
+            });
+
+            const ledgerBadge = matchedPersonalTx
+                ? `<span class="badge" style="background:rgba(52,211,153,0.15);color:#34d399;font-size:0.68rem;padding:1px 5px;border:1px solid rgba(52,211,153,0.3);margin-left:6px;" title="내 개인 가계부에도 정상 등록되어 있음">✅ 가계부 반영</span>`
+                : `<button class="btn btn-ghost btn-sm" onclick="GameDuesPage.copyExpenseToPersonalLedger('${r.id}')" style="background:rgba(251,191,36,0.1);color:#fbbf24;font-size:0.68rem;padding:1px 6px;border:1px solid rgba(251,191,36,0.3);margin-left:6px;font-weight:700;" title="가계부에 지출 내역이 없음! 클릭 시 내 가계부 지출로 즉시 복사 등록">+ 가계부 미기록</button>`;
+
             return `
             <tr ondblclick="GameDuesPage.openEditExpenseModal('${r.id}')" style="cursor:pointer" title="더블클릭하여 금액/내용 수정">
                 <td style="text-align:center;" onclick="event.stopPropagation()">
                     <input type="checkbox" class="exp-cb" data-id="${r.id}" style="cursor:pointer;width:16px;height:16px;">
                 </td>
                 <td style="white-space:nowrap;font-weight:500">${dateStr}</td>
-                <td style="font-weight:600">${Utils.escapeHtml(r.title || '')}</td>
+                <td>
+                    <span style="font-weight:600">${Utils.escapeHtml(r.title || '')}</span>
+                    ${ledgerBadge}
+                </td>
                 <td class="amount-expense">-${Utils.formatVND(amt)}</td>
                 <td style="color:var(--text-muted)">${Utils.escapeHtml(r.memo || '')}</td>
                 <td style="white-space:nowrap;text-align:center;" onclick="event.stopPropagation()">
@@ -846,6 +874,37 @@ const GameDuesPage = {
         }
 
         Utils.toast(`🎉 총 ${count}건이 개인 가계부로 복원되었습니다!`, 'success');
+        await this.refresh();
+    },
+
+    /** 게임회비 지출을 개인 가계부에도 지출로 복사 등록 (총무 본인 결제분 반영) */
+    async copyExpenseToPersonalLedger(id) {
+        const item = this._expenseList.find(r => String(r.id) === String(id));
+        if (!item) return;
+
+        const categories = await Store.getCategories();
+        // 레저/취미 or 식비 or 기타 카테고리 매칭
+        const isScreen = /(?:스크린|골프|screen|golf|라운딩|round)/i.test(`${item.title} ${item.memo}`);
+        const isMeal = /(?:식사|회식|밥|술|식당|저녁|점심|고기|맥주|meal|dinner)/i.test(`${item.title} ${item.memo}`);
+
+        let cat = categories.find(c => isScreen ? /취미|레저|문화|골프/i.test(c.name) : (isMeal ? /식비|외식|식사/i.test(c.name) : false));
+        if (!cat) cat = categories.find(c => /기타|생활/i.test(c.name)) || categories[0];
+
+        const memoStr = `[게임회비 결제] ${item.title || '지출'}${item.memo ? ' (' + item.memo + ')' : ''}`;
+
+        const ok = confirm(`[${Utils.formatDateKR(item.tx_date)} - ${item.title}]\n금액: ${Utils.formatVND(item.amount)}\n\n이 모임 지출을 [내 개인 가계부]의 지출로 등록할까요?\n(카테고리: ${cat ? cat.name : '기타'})`);
+        if (!ok) return;
+
+        await Store.addTransaction({
+            tx_date: item.tx_date,
+            type: 'expense',
+            amount: item.amount,
+            category_id: cat ? cat.id : null,
+            payment_method: 'account',
+            memo: memoStr
+        });
+
+        Utils.toast(`✅ 개인 가계부에 ${Utils.formatVND(item.amount)} 지출이 등록되었습니다!`, 'success');
         await this.refresh();
     },
 
