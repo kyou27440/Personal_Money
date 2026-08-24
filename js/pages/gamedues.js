@@ -162,13 +162,43 @@ const GameDuesPage = {
 
             <!-- 탭 -->
             <div class="dues-tabs">
-                <button class="dues-tab-btn active" id="tab-income"  onclick="GameDuesPage.switchTab('income')">📥 입금 내역 <span id="badge-income" style="background:rgba(52,211,153,0.2);color:#34d399;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${this._incomeList.length}</span></button>
+                <button class="dues-tab-btn active" id="tab-rounds" onclick="GameDuesPage.switchTab('rounds')">⛳ 📅 날짜별 모임 정산 <span id="badge-rounds" style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px"></span></button>
+                <button class="dues-tab-btn" id="tab-income"  onclick="GameDuesPage.switchTab('income')">📥 입금 내역 <span id="badge-income" style="background:rgba(52,211,153,0.2);color:#34d399;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${this._incomeList.length}</span></button>
                 <button class="dues-tab-btn" id="tab-expense" onclick="GameDuesPage.switchTab('expense')">📤 지출 내역 <span id="badge-expense" style="background:rgba(248,113,113,0.15);color:#fb7185;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${this._expenseList.length}</span></button>
                 <button class="dues-tab-btn" id="tab-members" onclick="GameDuesPage.switchTab('members')">👥 멤버 현황 <span id="badge-members" style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${members.length}명</span></button>
             </div>
 
+            <!-- ⛳ 1순위: 날짜별 모임 종합 정산 패널 -->
+            <div class="dues-panel active" id="panel-rounds">
+                <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <div class="dues-section-title">⛳ 일자별 모임 정산 피드 (스크린비·회식비·납부현황)</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button class="btn btn-ghost btn-sm" id="btn-sync-from-ledger-round" style="border-color:#fbbf24;color:#fbbf24;font-weight:700;">⚡ 가계부에서 회비 자동 가져오기</button>
+                        <button class="btn btn-primary btn-sm" onclick="GameDuesPage.openExpenseModal()">+ 지출 등록</button>
+                        <button class="btn btn-emerald btn-sm" onclick="GameDuesPage.openIncomeModal()" style="background:#10b981;color:#fff;">+ 입금 등록</button>
+                    </div>
+                </div>
+
+                <div class="dues-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:16px;">
+                    <div style="display:flex;gap:4px;">
+                        <button class="btn btn-ghost btn-sm" id="btn-round-all-time" style="padding:3px 8px;font-size:0.78rem;">🗓️ 전체</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-round-this-month" style="padding:3px 8px;font-size:0.78rem;">이번 달</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-round-last-month" style="padding:3px 8px;font-size:0.78rem;">지난 달</button>
+                    </div>
+                    <input type="date" id="round-filter-start" value="2020-01-01" style="width:130px;">
+                    <span style="color:var(--text-muted)">~</span>
+                    <input type="date" id="round-filter-end" value="${Utils.today()}" style="width:130px;">
+                    <button class="btn btn-ghost btn-sm" id="btn-filter-round-apply">🔍 조회</button>
+                </div>
+
+                <!-- 날짜별 모임 정산 카드 목록 컨테이너 -->
+                <div id="rounds-cards-container" style="display:flex;flex-direction:column;gap:16px;">
+                    <!-- 동적 렌더링 -->
+                </div>
+            </div>
+
             <!-- 입금 내역 패널 -->
-            <div class="dues-panel active" id="panel-income">
+            <div class="dues-panel" id="panel-income">
                 <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                     <div class="dues-section-title">💰 게임회비 입금 내역</div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -276,6 +306,7 @@ const GameDuesPage = {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     async afterRender() {
+        this.renderRoundsFeed();
         this.renderIncomeTable(this._incomeList);
         this.renderExpenseTable(this._expenseList);
         this.renderMemberGrid();
@@ -285,9 +316,37 @@ const GameDuesPage = {
         document.getElementById('btn-dues-settings')?.addEventListener('click', () => this.openSettingsModal());
         document.getElementById('btn-filter-income-apply')?.addEventListener('click', () => this.filterIncome());
         document.getElementById('btn-filter-expense-apply')?.addEventListener('click', () => this.filterExpense());
+        document.getElementById('btn-filter-round-apply')?.addEventListener('click', () => this.renderRoundsFeed());
         document.getElementById('btn-sync-from-ledger')?.addEventListener('click', () => this.syncFromLedger());
+        document.getElementById('btn-sync-from-ledger-round')?.addEventListener('click', () => this.syncFromLedger());
         document.getElementById('btn-bulk-revert-income')?.addEventListener('click', () => this.bulkRevertToPersonalLedger(true));
         document.getElementById('btn-bulk-revert-expense')?.addEventListener('click', () => this.bulkRevertToPersonalLedger(false));
+
+        // 모임 라운드 기간 숏컷
+        document.getElementById('btn-round-all-time')?.addEventListener('click', () => {
+            const s = document.getElementById('round-filter-start');
+            const e = document.getElementById('round-filter-end');
+            if (s) s.value = '2020-01-01';
+            if (e) e.value = Utils.today();
+            this.renderRoundsFeed();
+        });
+        document.getElementById('btn-round-this-month')?.addEventListener('click', () => {
+            const s = document.getElementById('round-filter-start');
+            const e = document.getElementById('round-filter-end');
+            if (s) s.value = Utils.monthStart();
+            if (e) e.value = Utils.today();
+            this.renderRoundsFeed();
+        });
+        document.getElementById('btn-round-last-month')?.addEventListener('click', () => {
+            const now = new Date();
+            const lastMonthFirst = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastMonthLast = new Date(now.getFullYear(), now.getMonth(), 0);
+            const s = document.getElementById('round-filter-start');
+            const e = document.getElementById('round-filter-end');
+            if (s) s.value = Utils.formatDate(lastMonthFirst);
+            if (e) e.value = Utils.formatDate(lastMonthLast);
+            this.renderRoundsFeed();
+        });
 
         // 입금 기간 숏컷
         document.getElementById('btn-inc-all-time')?.addEventListener('click', () => {
@@ -380,10 +439,183 @@ const GameDuesPage = {
 
     switchTab(tab) {
         this._activeTab = tab;
-        ['income', 'expense', 'members'].forEach(t => {
+        ['rounds', 'income', 'expense', 'members'].forEach(t => {
             document.getElementById(`tab-${t}`)?.classList.toggle('active', t === tab);
             document.getElementById(`panel-${t}`)?.classList.toggle('active', t === tab);
         });
+    },
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ⛳ 1순위: 날짜별 모임 정산 피드 렌더링
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    renderRoundsFeed() {
+        const container = document.getElementById('rounds-cards-container');
+        const badgeRounds = document.getElementById('badge-rounds');
+        if (!container) return;
+
+        const start = document.getElementById('round-filter-start')?.value || '';
+        const end   = document.getElementById('round-filter-end')?.value || '';
+
+        // 1. 날짜별 그룹핑
+        const dateMap = {};
+
+        this._incomeList.forEach(inc => {
+            const d = Utils.formatDate(inc.tx_date);
+            if (start && d < start) return;
+            if (end && d > end) return;
+            if (!dateMap[d]) dateMap[d] = { date: d, incomes: [], expenses: [] };
+            dateMap[d].incomes.push(inc);
+        });
+
+        this._expenseList.forEach(exp => {
+            const d = Utils.formatDate(exp.tx_date);
+            if (start && d < start) return;
+            if (end && d > end) return;
+            if (!dateMap[d]) dateMap[d] = { date: d, incomes: [], expenses: [] };
+            dateMap[d].expenses.push(exp);
+        });
+
+        const sortedDates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a));
+        if (badgeRounds) badgeRounds.textContent = `${sortedDates.length}개 모임`;
+
+        if (sortedDates.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center;padding:50px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;color:var(--text-muted);">
+                    <div style="font-size:2rem;margin-bottom:8px;">⛳</div>
+                    <div style="font-size:1rem;font-weight:600;">조회된 모임 정산 내역이 없습니다</div>
+                    <div style="font-size:0.82rem;margin-top:6px;">상단의 [+ 입금 등록] 또는 [+ 지출 등록] 버튼으로 모임 내역을 추가해보세요.</div>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = sortedDates.map(dateKey => {
+            const grp = dateMap[dateKey];
+            const dateTitle = Utils.formatDateKR(grp.date);
+            const totalInc = grp.incomes.reduce((s, r) => s + Utils.parseAmount(r.amount), 0);
+            const totalExp = grp.expenses.reduce((s, r) => s + Utils.parseAmount(r.amount), 0);
+            const balance = totalInc - totalExp;
+
+            // 스크린비 vs 식사비 지출 분류
+            let screenExp = 0;
+            let mealExp = 0;
+            let otherExp = 0;
+
+            grp.expenses.forEach(e => {
+                const text = `${e.title || ''} ${e.memo || ''}`.toLowerCase();
+                const amt = Utils.parseAmount(e.amount);
+                if (/(?:스크린|골프|screen|golf|라운딩|round|zone)/i.test(text)) {
+                    screenExp += amt;
+                } else if (/(?:식사|회식|밥|술|식당|저녁|점심|고기|맥주|커피|meal|dinner)/i.test(text)) {
+                    mealExp += amt;
+                } else {
+                    otherExp += amt;
+                }
+            });
+
+            const balColor = balance >= 0 ? '#34d399' : '#fb7185';
+            const balSign = balance >= 0 ? '+' : '';
+
+            // 좌측: 멤버별 입금 리스트
+            const incItemsHtml = grp.incomes.length > 0 ? grp.incomes.map(inc => {
+                const initials = (inc.member_name || '?').slice(0, 2).toUpperCase();
+                const amt = Utils.parseAmount(inc.amount);
+                return `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.84rem;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);
+                                        display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:700;color:#fff;">${initials}</div>
+                            <span style="font-weight:600;color:var(--text-primary);">${Utils.escapeHtml(inc.member_name)}</span>
+                            ${inc.memo ? `<span style="color:var(--text-muted);font-size:0.75rem;">(${Utils.escapeHtml(inc.memo)})</span>` : ''}
+                        </div>
+                        <span style="font-weight:700;color:#34d399;">+${Utils.formatVND(amt)}</span>
+                    </div>
+                `;
+            }).join('') : '<div style="color:var(--text-muted);font-size:0.8rem;padding:8px 0;">입금 내역 없음</div>';
+
+            // 우측: 지출 내역 리스트
+            const expItemsHtml = grp.expenses.length > 0 ? grp.expenses.map(exp => {
+                const text = `${exp.title || ''} ${exp.memo || ''}`.toLowerCase();
+                const amt = Utils.parseAmount(exp.amount);
+                const isScreen = /(?:스크린|골프|screen|golf|라운딩|round)/i.test(text);
+                const isMeal = /(?:식사|회식|밥|술|식당|저녁|점심|고기|맥주|meal|dinner)/i.test(text);
+                const badgeTag = isScreen
+                    ? '<span class="badge badge-indigo" style="font-size:0.7rem;padding:1px 6px;">⛳ 스크린</span>'
+                    : (isMeal ? '<span class="badge badge-amber" style="font-size:0.7rem;padding:1px 6px;">🍖 회식/식사</span>' : '<span class="badge badge-expense" style="font-size:0.7rem;padding:1px 6px;">기타</span>');
+
+                return `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.84rem;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            ${badgeTag}
+                            <span style="font-weight:600;color:var(--text-primary);">${Utils.escapeHtml(exp.title || '지출')}</span>
+                            ${exp.memo ? `<span style="color:var(--text-muted);font-size:0.75rem;">(${Utils.escapeHtml(exp.memo)})</span>` : ''}
+                        </div>
+                        <span style="font-weight:700;color:#fb7185;">-${Utils.formatVND(amt)}</span>
+                    </div>
+                `;
+            }).join('') : '<div style="color:var(--text-muted);font-size:0.8rem;padding:8px 0;">지출 내역 없음</div>';
+
+            return `
+            <div class="dues-round-card" style="background:var(--card-bg);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,0.2);">
+                <!-- 카드 상단 종합 요약 바 -->
+                <div style="background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.08);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:1.2rem;">📅</span>
+                        <div>
+                            <div style="font-size:1.02rem;font-weight:700;color:#fff;">${dateTitle} 모임 정산</div>
+                            <div style="font-size:0.76rem;color:var(--text-muted);">${grp.date}</div>
+                        </div>
+                    </div>
+
+                    <!-- 3대 요약 뱃지 -->
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);padding:4px 10px;border-radius:8px;text-align:right;">
+                            <div style="font-size:0.7rem;color:#34d399;font-weight:600;">💰 총 회비 걷힌 액</div>
+                            <div style="font-size:0.92rem;font-weight:800;color:#34d399;">+${Utils.formatVND(totalInc)}</div>
+                        </div>
+                        <div style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);padding:4px 10px;border-radius:8px;text-align:right;">
+                            <div style="font-size:0.7rem;color:#fb7185;font-weight:600;">💸 총 사용 지출</div>
+                            <div style="font-size:0.92rem;font-weight:800;color:#fb7185;">-${Utils.formatVND(totalExp)}</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.04);border:1px solid ${balColor}66;padding:4px 10px;border-radius:8px;text-align:right;">
+                            <div style="font-size:0.7rem;color:var(--text-muted);font-weight:600;">⚖️ 당일 정산 잔액</div>
+                            <div style="font-size:0.95rem;font-weight:800;color:${balColor};">${balSign}${Utils.formatVND(balance)}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 지출 목적별 요약 태그 바 -->
+                ${totalExp > 0 ? `
+                <div style="background:rgba(0,0,0,0.2);padding:6px 18px;display:flex;gap:14px;font-size:0.78rem;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">
+                    ${screenExp > 0 ? `<span>⛳ <strong>스크린비</strong>: <span style="color:#818cf8;font-weight:700;">${Utils.formatVND(screenExp)}</span></span>` : ''}
+                    ${mealExp > 0 ? `<span>🍖 <strong>식사/회식비</strong>: <span style="color:#fbbf24;font-weight:700;">${Utils.formatVND(mealExp)}</span></span>` : ''}
+                    ${otherExp > 0 ? `<span>💰 <strong>기타지출</strong>: <span style="color:#94a3b8;font-weight:700;">${Utils.formatVND(otherExp)}</span></span>` : ''}
+                </div>` : ''}
+
+                <!-- 카드 본문: 2열 그리드 (입금 vs 지출) -->
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;padding:16px 18px;">
+                    <!-- 좌측: 멤버별 납부 -->
+                    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
+                            <span style="font-size:0.84rem;font-weight:700;color:#34d399;">👥 멤버별 납부 (${grp.incomes.length}명)</span>
+                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openIncomeModal('${grp.date}')" style="padding:1px 6px;font-size:0.72rem;border-color:rgba(52,211,153,0.3);color:#34d399;">+ 입금추가</button>
+                        </div>
+                        ${incItemsHtml}
+                    </div>
+
+                    <!-- 우측: 지출 내역 -->
+                    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
+                            <span style="font-size:0.84rem;font-weight:700;color:#fb7185;">🧾 지출 내역 (${grp.expenses.length}건)</span>
+                            <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openExpenseModal('${grp.date}')" style="padding:1px 6px;font-size:0.72rem;border-color:rgba(248,113,113,0.3);color:#fb7185;">+ 지출추가</button>
+                        </div>
+                        ${expItemsHtml}
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
     },
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -634,7 +866,7 @@ const GameDuesPage = {
     // MODALS
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    openIncomeModal() {
+    openIncomeModal(defaultDate = null) {
         // 기존 멤버 이름 자동완성 데이터
         const knownNames = [...new Set(this._incomeList.map(r => r.member_name).filter(Boolean))];
         const datalistOpts = knownNames.map(n => `<option value="${Utils.escapeHtml(n)}">`).join('');
@@ -644,7 +876,7 @@ const GameDuesPage = {
             <div class="form-grid">
                 <div class="form-group">
                     <label>날짜</label>
-                    <input type="date" id="inc-date" value="${Utils.today()}">
+                    <input type="date" id="inc-date" value="${defaultDate || Utils.today()}">
                 </div>
                 <div class="form-group">
                     <label>입금자 이름 (영문)</label>
@@ -658,7 +890,7 @@ const GameDuesPage = {
             </div>
             <div class="form-group mt-md">
                 <label>메모 (선택)</label>
-                <input type="text" id="inc-memo" placeholder="예: 8월 회비">
+                <input type="text" id="inc-memo" placeholder="예: 8월 모임 회비">
             </div>
         `, `
             <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
@@ -687,16 +919,22 @@ const GameDuesPage = {
         });
     },
 
-    openExpenseModal() {
-        Modal.open('💸 지출 내역 등록', `
+    openExpenseModal(defaultDate = null, defaultTitle = '') {
+        Modal.open('💸 모임 지출 내역 등록', `
+            <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;">
+                <span style="font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;">빠른 선택:</span>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('exp-title').value='⛳ 스크린 골프장 비용'" style="padding:2px 8px;font-size:0.75rem;">⛳ 스크린비</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('exp-title').value='🍖 저녁 식사 / 회식비'" style="padding:2px 8px;font-size:0.75rem;">🍖 식사/회식비</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('exp-title').value='☕ 음료 / 간식'" style="padding:2px 8px;font-size:0.75rem;">☕ 음료/간식</button>
+            </div>
             <div class="form-grid">
                 <div class="form-group">
                     <label>날짜</label>
-                    <input type="date" id="exp-date" value="${Utils.today()}">
+                    <input type="date" id="exp-date" value="${defaultDate || Utils.today()}">
                 </div>
                 <div class="form-group">
-                    <label>지출 내용</label>
-                    <input type="text" id="exp-title" placeholder="예: 식사, 음료, 간식">
+                    <label>지출 내용 / 항목</label>
+                    <input type="text" id="exp-title" value="${defaultTitle}" placeholder="예: 스크린 골프비, 저녁 식사">
                 </div>
                 <div class="form-group full-width">
                     <label>지출액 (VND)</label>
@@ -705,7 +943,7 @@ const GameDuesPage = {
             </div>
             <div class="form-group mt-md">
                 <label>메모 (선택)</label>
-                <input type="text" id="exp-memo" placeholder="예: 라운딩 후 식사">
+                <input type="text" id="exp-memo" placeholder="예: 4명 참가 / 골프존 18홀">
             </div>
         `, `
             <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
@@ -855,7 +1093,8 @@ const GameDuesPage = {
         setHTML('badge-expense', `<span style="background:rgba(248,113,113,0.15);color:#fb7185;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${this._expenseList.length}</span>`);
         setHTML('badge-members', `<span style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:10px;padding:1px 7px;font-size:0.76rem;margin-left:4px">${members.length}명</span>`);
 
-        // 테이블
+        // 테이블 & 모임 피드
+        this.renderRoundsFeed();
         this.filterIncome();
         this.filterExpense();
         this.renderMemberGrid();
