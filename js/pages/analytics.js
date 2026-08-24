@@ -5,18 +5,14 @@
 const AnalyticsPage = {
     async render() {
         return `
-        <div class="analytics-grid">
-            <div class="card">
-                <div class="card-header"><span class="card-title">📊 이번 달 카테고리별 지출 비율</span></div>
-                <div class="chart-container" style="height:300px"><canvas id="cat-doughnut-chart"></canvas></div>
+        <div class="analytics-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:16px;">
+            <div class="card" style="padding:18px;">
+                <div class="card-header" style="margin-bottom:14px;"><span class="card-title" style="font-size:1rem;font-weight:700;">📊 이번 달 카테고리별 지출 비율</span></div>
+                <div class="chart-container" style="height:360px"><canvas id="cat-doughnut-chart"></canvas></div>
             </div>
-            <div class="card">
-                <div class="card-header"><span class="card-title">📈 최근 6개월 수입/지출 추이</span></div>
-                <div class="chart-container" style="height:300px"><canvas id="monthly-trend-chart"></canvas></div>
-            </div>
-            <div class="card full-width">
-                <div class="card-header"><span class="card-title">💱 최근 6개월 환전 현황 (VND / KRW)</span></div>
-                <div class="chart-container" style="height:280px"><canvas id="exchange-bar-chart"></canvas></div>
+            <div class="card" style="padding:18px;">
+                <div class="card-header" style="margin-bottom:14px;"><span class="card-title" style="font-size:1rem;font-weight:700;">📊 최근 6개월 수입/지출 추이 (막대 그래프)</span></div>
+                <div class="chart-container" style="height:360px"><canvas id="monthly-trend-chart"></canvas></div>
             </div>
         </div>`;
     },
@@ -24,8 +20,7 @@ const AnalyticsPage = {
     async afterRender() {
         await Promise.all([
             this.drawCategoryDoughnut(),
-            this.drawMonthlyTrend(),
-            this.drawExchangeBar()
+            this.drawMonthlyTrend()
         ]);
     },
 
@@ -70,49 +65,47 @@ const AnalyticsPage = {
             expenseData.push(s.expense);
         }
         new Chart(canvas, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    { label: '수입', data: incomeData, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 },
-                    { label: '지출', data: expenseData, borderColor: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.1)', fill: true, tension: 0.4 }
-                ]
-            },
-            options: { ...Utils.chartDefaults(), plugins: { ...Utils.chartDefaults().plugins, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${Utils.formatVND(ctx.raw)}` } } } }
-        });
-    },
-
-    async drawExchangeBar() {
-        const canvas = document.getElementById('exchange-bar-chart');
-        if (!canvas) return;
-        const now = new Date();
-        const labels = [], vndData = [], krwData = [];
-        for (let i = 5; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const start = d.toISOString().split('T')[0];
-            const end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-            labels.push(`${d.getMonth() + 1}월`);
-            const exList = await Store.getExchanges({ startDate: start, endDate: end });
-            let vnd = 0, krw = 0;
-            exList.forEach(e => { vnd += Number(e.amount_vnd); krw += Number(e.amount_krw); });
-            vndData.push(vnd);
-            krwData.push(krw);
-        }
-        new Chart(canvas, {
             type: 'bar',
             data: {
                 labels,
                 datasets: [
-                    { label: 'VND 거래량', data: vndData, backgroundColor: 'rgba(99,102,241,0.7)', borderRadius: 6, yAxisID: 'y' },
-                    { label: 'KRW 거래량', data: krwData, backgroundColor: 'rgba(245,158,11,0.7)', borderRadius: 6, yAxisID: 'y1' }
+                    {
+                        label: '수입 (VND)',
+                        data: incomeData,
+                        backgroundColor: 'rgba(52, 211, 153, 0.85)',
+                        borderColor: '#10b981',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.6
+                    },
+                    {
+                        label: '지출 (VND)',
+                        data: expenseData,
+                        backgroundColor: 'rgba(251, 113, 133, 0.85)',
+                        borderColor: '#f43f5e',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.6
+                    }
                 ]
             },
             options: {
                 ...Utils.chartDefaults(),
-                scales: {
-                    x: Utils.chartDefaults().scales.x,
-                    y: { ...Utils.chartDefaults().scales.y, position: 'left', title: { display: true, text: 'VND', color: '#6b7280' } },
-                    y1: { ...Utils.chartDefaults().scales.y, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'KRW', color: '#6b7280' } }
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    ...Utils.chartDefaults().plugins,
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#cbd5e1', font: { family: 'Inter', size: 12, weight: '600' }, padding: 14 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: ${Utils.formatVND(ctx.raw)}`
+                        }
+                    }
                 }
             }
         });
