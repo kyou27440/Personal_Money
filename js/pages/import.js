@@ -308,6 +308,7 @@ const ImportPage = {
 
     _onMappingChange() {
         const keys = ['date', 'income', 'expense', 'balance', 'memo'];
+        if (!this._currentMapping) this._currentMapping = {};
         keys.forEach(k => {
             const el = document.getElementById(`map-${k}`);
             if (el) this._currentMapping[k] = parseInt(el.value);
@@ -315,8 +316,13 @@ const ImportPage = {
     },
 
     applyMapping() {
-        if (!this._rawRows) return;
+        if (!this._rawRows || this._rawRows.length === 0) {
+            Utils.toast('파싱할 엑셀 데이터가 없습니다.', 'error');
+            return;
+        }
 
+        // 최신 셀렉트 박스 값 직접 읽기
+        this._onMappingChange();
         const mapping = this._currentMapping || {};
         const rawRows = [];
 
@@ -358,6 +364,11 @@ const ImportPage = {
             }
         });
 
+        if (rawRows.length === 0) {
+            Utils.toast('선택한 컬럼에서 유효한 거래 내역(날짜/금액)을 찾지 못했습니다. 매핑 설정을 확인해주세요.', 'error');
+            return;
+        }
+
         // ① 배치 내 자체 중복 제거 (날짜+금액+구분 동일)
         const { unique, batchDupCount } = this._deduplicateRows(rawRows);
         this._rows = unique;
@@ -366,7 +377,9 @@ const ImportPage = {
             const total = batchDupCount + dbDupCount;
             this.renderPreview();
             if (total > 0) {
-                Utils.toast(`🗑️ 중복 ${total}건 자동 제거 (파일내 ${batchDupCount}건 + DB중복 ${dbDupCount}건)`, 'info');
+                Utils.toast(`🗑️ 중복 ${total}건 자동 제거 (파일내 ${batchDupCount}건 + 기존DB ${dbDupCount}건)`, 'info');
+            } else {
+                Utils.toast(`✅ ${this._rows.length}건의 거래 내역을 불러왔습니다.`, 'success');
             }
         });
     },
@@ -796,8 +809,9 @@ const ImportPage = {
     },
 
     _parseDate(val) {
-        if (!val) return null;
+        if (!val && val !== 0) return null;
 
+        // Date 객체인 경우
         if (val instanceof Date) {
             if (isNaN(val.getTime())) return null;
             const y = val.getFullYear();
@@ -809,15 +823,44 @@ const ImportPage = {
         const s = String(val).trim();
         if (!s) return null;
 
-        let match = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
-        if (match) return `${match[1]}-${match[2].padStart(2,'0')}-${match[3].padStart(2,'0')}`;
+        // 1. YYYY-MM-DD 또는 YYYY/MM/DD 또는 YYYY.MM.DD
+        let m1 = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+        if (m1) {
+            return `${m1[1]}-${String(m1[2]).padStart(2, '0')}-${String(m1[3]).padStart(2, '0')}`;
+        }
 
+        // 2. DD/MM/YYYY 또는 DD-MM-YYYY 또는 DD.MM.YYYY (영미권/베트남 은행)
+        let m2 = s.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/);
+        if (m2) {
+            return `${m2[3]}-${String(m2[2]).padStart(2, '0')}-${String(m2[1]).padStart(2, '0')}`;
+        }
+
+        // 3. YYYYMMDD (8자리 숫자)
+        let m3 = s.match(/^(\d{4})(\d{2})(\d{2})/);
+        if (m3) {
+            return `${m3[1]}-${m3[2]}-${m3[3]}`;
+        }
+
+        // 4. Excel 일련번호 (예: 45500)
         const num = parseFloat(s);
-        if (!isNaN(num) && num > 40000 && num < 60000) {
-            const d = new Date(Date.UTC(1899, 11, 30) + num * 86400000);
+        if (!isNaN(num) && num > 30000 && num < 70000) {
+            const d = new Date(Math.round((num - 25569) * 86400 * 1000));
             if (!isNaN(d.getTime())) {
-                return d.toISOString().slice(0, 10);
+                const y = d.getUTCFullYear();
+                const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(d.getUTCDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
             }
+        }
+
+        // 5. 문자열 내에 포함된 날짜 추출 시도
+        let m4 = s.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+        if (m4) {
+            return `${m4[1]}-${String(m4[2]).padStart(2, '0')}-${String(m4[3]).padStart(2, '0')}`;
+        }
+        let m5 = s.match(/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/);
+        if (m5) {
+            return `${m5[3]}-${String(m5[2]).padStart(2, '0')}-${String(m5[1]).padStart(2, '0')}`;
         }
 
         return null;
@@ -826,8 +869,13 @@ const ImportPage = {
     _parseNumber(val) {
         if (val === null || val === undefined || val === '') return 0;
         if (typeof val === 'number') return Math.abs(val);
-        const s = String(val).replace(/[,\s₩원]/g, '').replace(/[+]/g, '');
-        const n = parseFloat(s.replace(/-/, ''));
+        // 통화기호, 쉼표, 공백, 플러스 기호 제거
+        let s = String(val).trim().replace(/[,\s₩원VNDvndđĐ$]/g, '').replace(/^\+/, '');
+        // 괄호 음수 표기 (1,000) -> 1000
+        if (s.startsWith('(') && s.endsWith(')')) {
+            s = s.slice(1, -1);
+        }
+        const n = parseFloat(s.replace(/^-/, ''));
         return isNaN(n) ? 0 : Math.abs(n);
     },
 
