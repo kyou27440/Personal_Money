@@ -785,9 +785,24 @@ const PersonalPage = {
                 <input type="text" id="tx-memo" placeholder="메모 (선택)" value="${editTx ? Utils.escapeHtml(editTx.memo) : ''}">
             </div>
         `, `
-            <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
-            <button class="btn btn-primary" id="btn-save-tx">${isEdit ? '수정' : '저장'}</button>
+            <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
+                ${isEdit && editTx?.type === 'expense' ? `
+                    <button class="btn btn-ghost btn-sm" id="btn-open-split-modal" style="border-color:#fbbf24;color:#fbbf24;font-weight:700;">
+                        ✂️ 담배/간식 쪼개기 (분할)
+                    </button>
+                ` : '<div></div>'}
+                <div style="display:flex;gap:6px;">
+                    <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
+                    <button class="btn btn-primary" id="btn-save-tx">${isEdit ? '수정' : '저장'}</button>
+                </div>
+            </div>
         `);
+
+        if (isEdit && editTx?.type === 'expense') {
+            document.getElementById('btn-open-split-modal')?.addEventListener('click', () => {
+                this.openSplitTxModal(editTx);
+            });
+        }
 
         const amountInput = document.getElementById('tx-amount');
         Utils.bindAmountInputFormatter(amountInput);
@@ -882,6 +897,134 @@ const PersonalPage = {
             } else {
                 Utils.toast('저장에 실패했습니다', 'error');
             }
+        });
+    },
+
+    /** ✂️ 복합 지출 쪼개기 모달 (편의점 등에서 담배 + 아이스크림/간식 분할) */
+    async openSplitTxModal(tx) {
+        const totalAmt = Utils.parseAmount(tx.amount);
+        const cats = await Store.getCategories('expense');
+        const tobaccoCat = cats.find(c => /담배|tobacco|cigarette/i.test(c.name)) || cats[0];
+        const foodCat = cats.find(c => /식비|간식|카페|음료/i.test(c.name)) || cats[0];
+
+        // 기본 1갑 가격(50,000동 또는 총액의 절반)
+        let defaultCigAmt = totalAmt >= 50000 ? 50000 : Math.floor(totalAmt / 2);
+        let defaultRemainAmt = totalAmt - defaultCigAmt;
+
+        Modal.open('✂️ 지출 쪼개기 (담배 + 간식/식비 분할)', `
+            <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:12px;padding:12px 16px;margin-bottom:14px;">
+                <div style="font-size:0.82rem;color:var(--text-muted);">
+                    총 결제금액 <strong style="color:#fbbf24;font-size:1.05rem;">${Utils.formatVND(totalAmt)}</strong> 중 <strong style="color:#fff">담배 금액</strong>을 분리합니다.
+                </div>
+            </div>
+
+            <!-- 분할 1: 🚬 담배 -->
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span style="font-weight:700;color:#34d399;font-size:0.88rem;">1️⃣ 🚬 담배 항목</span>
+                    <div style="display:flex;gap:4px;">
+                        <button type="button" class="btn btn-ghost btn-sm btn-cig-preset" data-amt="50000" style="padding:1px 6px;font-size:0.75rem;">1갑 50k</button>
+                        <button type="button" class="btn btn-ghost btn-sm btn-cig-preset" data-amt="60000" style="padding:1px 6px;font-size:0.75rem;">1갑 60k</button>
+                        <button type="button" class="btn btn-ghost btn-sm btn-cig-preset" data-amt="100000" style="padding:1px 6px;font-size:0.75rem;">2갑 100k</button>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:2px;">담배 금액 (VND)</label>
+                        <input type="text" id="split-cig-amt" value="${Utils.formatNumber(defaultCigAmt)}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:#34d399;font-weight:800;font-size:0.9rem;box-sizing:border-box;" inputmode="numeric">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:2px;">메모</label>
+                        <input type="text" id="split-cig-memo" value="담배 구매" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:0.82rem;box-sizing:border-box;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 분할 2: 🍚 나머지 간식/식비 -->
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-bottom:12px;">
+                <div style="font-weight:700;color:#818cf8;font-size:0.88rem;margin-bottom:8px;">2️⃣ 🍚 나머지 (아이스크림/간식/식비)</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:2px;">나머지 금액 (자동 계산)</label>
+                        <input type="text" id="split-remain-amt" value="${Utils.formatNumber(defaultRemainAmt)}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:rgba(255,255,255,0.05);color:#818cf8;font-weight:800;font-size:0.9rem;box-sizing:border-box;" readonly>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:2px;">메모</label>
+                        <input type="text" id="split-remain-memo" value="${Utils.escapeHtml(tx.memo || '아이스크림 및 간식')}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:0.82rem;box-sizing:border-box;">
+                    </div>
+                </div>
+            </div>
+        `, `
+            <button class="btn btn-ghost" onclick="PersonalPage.openTxModal(PersonalPage._currentEditingTx || ${JSON.stringify(tx).replace(/"/g, '&quot;')})">뒤로</button>
+            <button class="btn btn-primary" id="btn-confirm-split-tx" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);font-weight:700;border:none;">
+                ✨ 2개 거래로 분할 저장
+            </button>
+        `);
+
+        const cigInput = document.getElementById('split-cig-amt');
+        const remainInput = document.getElementById('split-remain-amt');
+        if (cigInput) Utils.bindAmountInputFormatter(cigInput);
+
+        const updateRemain = () => {
+            const cigAmt = Utils.parseAmount(cigInput?.value || '0');
+            const remainAmt = Math.max(0, totalAmt - cigAmt);
+            if (remainInput) remainInput.value = Utils.formatNumber(remainAmt);
+        };
+
+        cigInput?.addEventListener('input', updateRemain);
+
+        document.querySelectorAll('.btn-cig-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const amt = parseInt(btn.dataset.amt);
+                if (cigInput) {
+                    cigInput.value = Utils.formatNumber(amt);
+                    updateRemain();
+                }
+            });
+        });
+
+        document.getElementById('btn-confirm-split-tx')?.addEventListener('click', async () => {
+            const cigAmt = Utils.parseAmount(cigInput?.value || '0');
+            const remainAmt = totalAmt - cigAmt;
+            const cigMemo = (document.getElementById('split-cig-memo')?.value || '담배').trim();
+            const remainMemo = (document.getElementById('split-remain-memo')?.value || '간식/기타').trim();
+
+            if (cigAmt <= 0 || remainAmt < 0) {
+                Utils.toast('담배 금액을 올바르게 입력해주세요 (총액 이하)', 'error');
+                return;
+            }
+
+            // 1. 기존 거래 삭제
+            await Store.deleteTransaction(tx.id);
+
+            // 2. 🚬 담배 거래 추가
+            await Store.addTransaction({
+                tx_date: tx.tx_date,
+                created_at: tx.created_at || new Date().toISOString(),
+                type: 'expense',
+                amount: cigAmt,
+                category_id: tobaccoCat?.id || null,
+                payment_method: tx.payment_method || 'transfer',
+                memo: cigMemo
+            });
+
+            // 3. 🍚 나머지 식비/간식 거래 추가 (0원보다 클 때만)
+            if (remainAmt > 0) {
+                await Store.addTransaction({
+                    tx_date: tx.tx_date,
+                    created_at: tx.created_at || new Date().toISOString(),
+                    type: 'expense',
+                    amount: remainAmt,
+                    category_id: foodCat?.id || null,
+                    payment_method: tx.payment_method || 'transfer',
+                    memo: remainMemo
+                });
+            }
+
+            Utils.toast(`🎉 [담배 ${Utils.formatVND(cigAmt)}] + [간식 ${Utils.formatVND(remainAmt)}] 2건으로 분할 완료!`, 'success');
+            Modal.close();
+            await this.loadTransactions();
+            await this.refreshSummary();
         });
     },
 
