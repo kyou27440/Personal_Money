@@ -25,8 +25,13 @@ const PersonalPage = {
                     <span>💳 계좌: <strong style="color:#6366f1">${Utils.formatVND(summary.expenseTransfer)}</strong></span>
                 </div>
             </div>
-            <div class="summary-card indigo">
-                <div class="card-label">총 잔액</div>
+            <div class="summary-card indigo" style="position:relative;">
+                <div class="card-label" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>총 잔액</span>
+                    <button class="btn btn-ghost btn-sm" id="btn-adjust-balance" style="padding:1px 6px;font-size:0.72rem;border-color:rgba(129,140,248,0.4);color:#818cf8;" title="실제 신한은행 잔액과 가계부 잔액을 일치하도록 한방에 차액 보정">
+                        ⚖️ 은행 잔액 맞춤
+                    </button>
+                </div>
                 <div class="card-value" id="summary-balance">${Utils.formatVND(breakdown.total.balance)}</div>
                 <div class="card-sub" id="summary-balance-sub" style="display:flex;justify-content:center;gap:12px;margin-top:6px;font-size:0.82rem;color:var(--text-muted);">
                     <span>💵 현금: <strong style="color:var(--accent-emerald)">${Utils.formatVND(breakdown.cash.balance)}</strong></span>
@@ -151,6 +156,7 @@ const PersonalPage = {
         document.getElementById('btn-add-tx')?.addEventListener('click', () => this.openTxModal());
         document.getElementById('btn-manage-cat')?.addEventListener('click', () => this.openCategoryModal());
         document.getElementById('btn-quick-manage-cat')?.addEventListener('click', () => this.openCategoryModal());
+        document.getElementById('btn-adjust-balance')?.addEventListener('click', () => this.openBalanceAdjustmentModal());
         document.getElementById('btn-filter-tx')?.addEventListener('click', () => this.loadTransactions());
         document.getElementById('filter-sort')?.addEventListener('change', () => this.loadTransactions());
         document.getElementById('btn-bulk-delete-tx')?.addEventListener('click', () => this.bulkDeleteTx());
