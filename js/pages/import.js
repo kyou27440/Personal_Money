@@ -92,6 +92,7 @@ const ImportPage = {
                         <span class="import-preview-count" id="preview-count">0건</span>
                     </div>
                     <div class="import-preview-actions">
+                        <button class="btn btn-primary btn-sm" onclick="ImportPage.addNewRow()">+ 수기 행 추가</button>
                         <button class="btn btn-ghost btn-sm" onclick="ImportPage.toggleAllRows(true)">전체 선택</button>
                         <button class="btn btn-ghost btn-sm" onclick="ImportPage.toggleAllRows(false)">전체 해제</button>
                         <button class="btn btn-ghost btn-sm" onclick="ImportPage.skipDuplicates()">⚠️ 중복 제외</button>
@@ -109,6 +110,7 @@ const ImportPage = {
                                 </th>
                                 <th>날짜</th>
                                 <th>구분</th>
+                                <th>등록 대상</th>
                                 <th>결제수단</th>
                                 <th>금액 (VND)</th>
                                 <th>메모 / 적요</th>
@@ -595,6 +597,10 @@ const ImportPage = {
             const isIncome = row.type === 'income';
             const amtClass = isIncome ? 'amount-income' : 'amount-expense';
 
+            // 기본 타겟 자동 감지: 입금 중 사람 이름이 있는 건은 게임회비로 기본 설정
+            const isDues = row.target ? (row.target === 'gamedues') : Utils.isLikelyGameDues(row.type, row.memo);
+            const detectedName = Utils.extractMemberName(row.memo);
+
             return `
             <tr data-idx="${i}">
                 <td>
@@ -613,6 +619,14 @@ const ImportPage = {
                         onchange="ImportPage._onFieldChange(${i},'type',this.value)">
                         <option value="expense" ${!isIncome ? 'selected' : ''}>📉 지출</option>
                         <option value="income"  ${isIncome ? 'selected' : ''}>📈 수입</option>
+                    </select>
+                </td>
+                <td>
+                    <select class="import-target" data-idx="${i}"
+                        onchange="ImportPage._onFieldChange(${i},'target',this.value)"
+                        style="font-weight:600;color:${isDues ? '#fbbf24' : '#818cf8'};background:${isDues ? 'rgba(251,191,36,0.1)' : 'rgba(99,102,241,0.1)'}">
+                        <option value="personal" ${!isDues ? 'selected' : ''}>💰 개인 가계부</option>
+                        <option value="gamedues" ${isDues ? 'selected' : ''}>🎮 게임회비${detectedName ? ' (' + detectedName + ')' : ''}</option>
                     </select>
                 </td>
                 <td>
@@ -636,7 +650,7 @@ const ImportPage = {
                         onchange="ImportPage._onFieldChange(${i},'memo',this.value)"
                         style="min-width:120px;max-width:200px">
                 </td>
-                <td><span class="badge-new">✅ 신규</span></td>
+                <td><span class="badge-new">${isDues ? '🎮 회비감지' : '✅ 신규'}</span></td>
             </tr>
             `;
         }).join('');
@@ -693,7 +707,8 @@ const ImportPage = {
         const defaultExpCat = cats.find(c => c.type === 'expense') || { id: 6 };
         const defaultIncCat = cats.find(c => c.type === 'income')  || { id: 9 };
 
-        let successCount = 0;
+        let personalCount = 0;
+        let gameDuesCount = 0;
         let failCount = 0;
         const resultBar = document.getElementById('import-result-bar');
 
@@ -704,32 +719,56 @@ const ImportPage = {
 
             const dateEl   = document.querySelector(`.import-date[data-idx="${idx}"]`);
             const typeEl   = document.querySelector(`.import-type[data-idx="${idx}"]`);
+            const targetEl = document.querySelector(`.import-target[data-idx="${idx}"]`);
             const methodEl = document.querySelector(`.import-method[data-idx="${idx}"]`);
             const amtEl    = document.querySelector(`.import-amount[data-idx="${idx}"]`);
             const memoEl   = document.querySelector(`.import-memo[data-idx="${idx}"]`);
 
             const finalDate   = dateEl?.value   || row.date;
             const finalType   = typeEl?.value   || row.type;
+            const finalTarget = targetEl?.value || (Utils.isLikelyGameDues(finalType, row.memo) ? 'gamedues' : 'personal');
             const finalMethod = methodEl?.value || row.method;
             const finalAmt    = Utils.parseAmount(amtEl?.value ?? row.amount);
             const finalMemo   = memoEl?.value   ?? row.memo;
 
             if (finalAmt <= 0) { failCount++; continue; }
 
-            const catId = finalType === 'income'
-                ? (defaultIncCat.id || 9)
-                : (defaultExpCat.id || 6);
-
             try {
-                await Store.addTransaction({
-                    tx_date: finalDate,
-                    type: finalType,
-                    amount: finalAmt,
-                    category_id: catId,
-                    payment_method: finalMethod,
-                    memo: finalMemo || '가져오기',
-                });
-                successCount++;
+                if (finalTarget === 'gamedues') {
+                    // 🎮 게임회비로 분리 저장 (개인 가계부/자산에 미반영)
+                    if (finalType === 'income') {
+                        const memberName = Utils.extractMemberName(finalMemo) || 'MEMBERS';
+                        await Store.addGameDuesIncome({
+                            tx_date: finalDate,
+                            member_name: memberName,
+                            amount: finalAmt,
+                            memo: finalMemo
+                        });
+                    } else {
+                        await Store.addGameDuesExpense({
+                            tx_date: finalDate,
+                            title: finalMemo || '식사/모임 지출',
+                            amount: finalAmt,
+                            memo: finalMemo
+                        });
+                    }
+                    gameDuesCount++;
+                } else {
+                    // 💰 개인 가계부로 저장
+                    const catId = finalType === 'income'
+                        ? (defaultIncCat.id || 9)
+                        : (defaultExpCat.id || 6);
+
+                    await Store.addTransaction({
+                        tx_date: finalDate,
+                        type: finalType,
+                        amount: finalAmt,
+                        category_id: catId,
+                        payment_method: finalMethod,
+                        memo: finalMemo || '가져오기',
+                    });
+                    personalCount++;
+                }
             } catch(e) {
                 failCount++;
                 console.error('저장 실패:', e, row);
@@ -738,15 +777,16 @@ const ImportPage = {
 
         if (btn) { btn.disabled = false; btn.textContent = '✅ 선택 항목 등록'; }
 
+        const totalSuccess = personalCount + gameDuesCount;
         if (resultBar) {
-            resultBar.className = successCount > 0 ? 'import-result-bar success' : 'import-result-bar error';
-            resultBar.innerHTML = successCount > 0
-                ? `✅ ${successCount}건 등록 완료! ${failCount > 0 ? '(' + failCount + '건 실패)' : ''} — <a href="#" onclick="Router.navigate('personal');return false;" style="color:inherit;font-weight:700;text-decoration:underline">가계부에서 확인</a>`
+            resultBar.className = totalSuccess > 0 ? 'import-result-bar success' : 'import-result-bar error';
+            resultBar.innerHTML = totalSuccess > 0
+                ? `✅ 총 ${totalSuccess}건 등록 완료! (개인 가계부: ${personalCount}건, 🎮 게임회비: ${gameDuesCount}건)`
                 : `❌ 저장에 실패했습니다. 다시 시도해주세요.`;
         }
 
-        if (successCount > 0) {
-            Utils.toast(`${successCount}건이 가계부에 등록되었습니다!`, 'success');
+        if (totalSuccess > 0) {
+            Utils.toast(`가계부 ${personalCount}건 + 게임회비 ${gameDuesCount}건 등록 완료!`, 'success');
 
             checked.forEach(cb => {
                 cb.checked = false;
@@ -760,6 +800,29 @@ const ImportPage = {
 
             this.updateSaveSummary();
         }
+    },
+
+    addNewRow() {
+        const newRow = {
+            _idx: `manual_${Date.now()}`,
+            date: Utils.today(),
+            type: 'expense',
+            target: 'personal',
+            amount: 0,
+            memo: '',
+            method: 'transfer',
+            isDup: false
+        };
+        this._rows.push(newRow);
+        this.renderPreview();
+        Utils.toast('새 행이 추가되었습니다. 날짜와 금액을 입력하세요.', 'info');
+
+        // 새로 추가된 행의 금액 인풋으로 포커스
+        setTimeout(() => {
+            const lastIdx = this._rows.length - 1;
+            const amtEl = document.querySelector(`.import-amount[data-idx="${lastIdx}"]`);
+            if (amtEl) amtEl.focus();
+        }, 100);
     },
 
     clearAll() {
