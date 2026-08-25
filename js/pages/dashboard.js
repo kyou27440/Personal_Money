@@ -23,8 +23,8 @@ const DashboardPage = {
                 </div>
             </div>
             <div style="text-align:right;flex-shrink:0;">
-                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v5.2.0 (담배+간식 복합지출 쪼개기 완비)</span>
-                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-08-24 16:29 업데이트</div>
+                <span class="badge badge-income" style="font-size:0.85rem;padding:4px 10px;font-weight:700;">v5.3.0 (엑셀·이미지 가져오기 활성화 완료)</span>
+                <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">🕒 2026-08-25 07:27 업데이트</div>
             </div>
         </div>
 
