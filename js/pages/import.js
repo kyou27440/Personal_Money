@@ -384,12 +384,6 @@ const ImportPage = {
                     isDup: false,
                 });
             }
-                    amount: expAmt,
-                    memo: String(memoVal || '').trim(),
-                    method: 'transfer',
-                    isDup: false,
-                });
-            }
         });
 
         if (rawRows.length === 0) {
