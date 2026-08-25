@@ -305,8 +305,6 @@ const GameDuesPage = {
                 </div>
                 <div id="expense-total-bar" style="text-align:right;padding:10px 4px;font-size:0.85rem;color:var(--text-muted)"></div>
             </div>
-                <div id="expense-total-bar" style="text-align:right;padding:10px 4px;font-size:0.85rem;color:var(--text-muted)"></div>
-            </div>
 
             <!-- 멤버 현황 패널 -->
             <div class="dues-panel" id="panel-members">
