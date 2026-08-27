@@ -60,7 +60,17 @@ const GameDuesPage = {
         this._expenseList = await Store.getGameDuesExpense();
     },
 
-    _loadSettings() {
+    async _loadSettings() {
+        try {
+            const remoteVal = await Store.getSetting('gamedues_settings');
+            if (remoteVal) {
+                const parsed = typeof remoteVal === 'string' ? JSON.parse(remoteVal) : remoteVal;
+                if (parsed && typeof parsed === 'object') {
+                    try { localStorage.setItem(this._KEY_SETTINGS, JSON.stringify(parsed)); } catch(e) {}
+                    return parsed;
+                }
+            }
+        } catch(e) {}
         try {
             const raw = localStorage.getItem(this._KEY_SETTINGS);
             if (raw) return JSON.parse(raw);
@@ -68,8 +78,11 @@ const GameDuesPage = {
         return { perPerson: 0, totalMembers: 0 };
     },
 
-    _saveSettings(s) {
+    async _saveSettings(s) {
         try { localStorage.setItem(this._KEY_SETTINGS, JSON.stringify(s)); } catch(e) {}
+        try {
+            await Store.setSetting('gamedues_settings', s);
+        } catch(e) {}
     },
 
     _loadLocal(key, def) {
@@ -117,7 +130,7 @@ const GameDuesPage = {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     async render() {
-        this._settings = this._loadSettings();
+        this._settings = await this._loadSettings();
         this._incomeList  = await this._loadIncome();
         this._expenseList = await this._loadExpense();
         this._personalTxList = await Store.getTransactions({ limit: 1000 });
@@ -1248,12 +1261,12 @@ const GameDuesPage = {
         document.getElementById('set-per-person')?.addEventListener('input', updatePreview);
         document.getElementById('set-members')?.addEventListener('input', updatePreview);
 
-        document.getElementById('btn-save-settings')?.addEventListener('click', () => {
+        document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
             const perPerson    = Utils.parseAmount(document.getElementById('set-per-person')?.value || '0');
             const totalMembers = parseInt(document.getElementById('set-members')?.value || '0') || 0;
 
             this._settings = { perPerson, totalMembers };
-            this._saveSettings(this._settings);
+            await this._saveSettings(this._settings);
             Modal.close();
             this._refreshAll();
             Utils.toast('설정이 저장되었습니다', 'success');
