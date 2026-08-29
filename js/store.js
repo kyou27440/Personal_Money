@@ -523,6 +523,8 @@ const Store = {
         const cats = await this.getCategories();
         const cat = cats.find(c => String(c.id) === String(cleanTx.category_id)) || (cleanTx.type === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
 
+        window.AppVersion?.updateSyncStatus();
+
         if (inserted) {
             // 성공 시 DB 생성 항목 즉시 반환 (LocalStorage에 재주입하지 않음)
             return {
@@ -566,6 +568,7 @@ const Store = {
             await supabase.from('personal_transactions').update(dbUpdates).eq('id', id);
         } catch(e) {}
 
+        window.AppVersion?.updateSyncStatus();
         return true;
     },
 
@@ -583,6 +586,7 @@ const Store = {
         }
 
         this._clearLocalDrafts();
+        window.AppVersion?.updateSyncStatus();
         return true;
     },
 
@@ -838,6 +842,7 @@ const Store = {
             }
         } catch(e) {}
 
+        window.AppVersion?.updateSyncStatus();
         return local;
     },
 
@@ -860,10 +865,12 @@ const Store = {
             if (!error && data) {
                 local.id = data.id;
                 this._setLocal('mymoney_gamedues_expense', list);
+                window.AppVersion?.updateSyncStatus();
                 return data;
             }
         } catch(e) {}
 
+        window.AppVersion?.updateSyncStatus();
         return local;
     },
 
@@ -884,6 +891,7 @@ const Store = {
             list[idx] = { ...list[idx], ...payload };
             this._setLocal('mymoney_gamedues_income', list);
         }
+        window.AppVersion?.updateSyncStatus();
         return true;
     },
 
@@ -904,6 +912,7 @@ const Store = {
             list[idx] = { ...list[idx], ...payload };
             this._setLocal('mymoney_gamedues_expense', list);
         }
+        window.AppVersion?.updateSyncStatus();
         return true;
     },
 
@@ -912,6 +921,7 @@ const Store = {
         let list = this._getLocal('mymoney_gamedues_income', []);
         list = list.filter(r => String(r.id) !== String(id));
         this._setLocal('mymoney_gamedues_income', list);
+        window.AppVersion?.updateSyncStatus();
         return true;
     },
 
@@ -920,6 +930,7 @@ const Store = {
         let list = this._getLocal('mymoney_gamedues_expense', []);
         list = list.filter(r => String(r.id) !== String(id));
         this._setLocal('mymoney_gamedues_expense', list);
+        window.AppVersion?.updateSyncStatus();
         return true;
     },
 
