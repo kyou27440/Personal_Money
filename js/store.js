@@ -755,181 +755,199 @@ const Store = {
         return { vnd, krw };
     },
 
-    // ─── 게임회비 관리 ───
+    // ─── 게임회비 관리 (Supabase app_settings 클라우드 실시간 양방향 동기화) ───
 
     async getGameDuesIncome(filters = {}) {
         let dbList = [];
         try {
-            let q = supabase.from('game_dues_income').select('*').order('tx_date', { ascending: false }).order('created_at', { ascending: false });
-            if (filters.startDate) q = q.gte('tx_date', Utils.formatDate(filters.startDate));
-            if (filters.endDate) q = q.lte('tx_date', Utils.formatDate(filters.endDate));
-            const { data, error } = await q;
-            if (!error && data) dbList = data;
+            const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'mymoney_gamedues_income').single();
+            if (!error && data && Array.isArray(data.value)) {
+                dbList = data.value;
+            }
         } catch(e) {}
 
         const localList = this._getLocal('mymoney_gamedues_income', []);
-        const dbIds = new Set(dbList.map(r => String(r.id)));
+        const dbKeys = new Set(dbList.map(r => `${Utils.formatDate(r.tx_date)}_${Utils.parseAmount(r.amount)}_${String(r.member_name || '').trim().toUpperCase()}`));
         const combined = [...dbList];
 
-        // DB에 없는 로컬 데이터 병합
+        // 로컬에만 있는 신규 항목 병합 및 클라우드 업로드
+        let hasNewLocal = false;
         localList.forEach(r => {
-            if (!dbIds.has(String(r.id))) {
+            const key = `${Utils.formatDate(r.tx_date)}_${Utils.parseAmount(r.amount)}_${String(r.member_name || '').trim().toUpperCase()}`;
+            if (!dbKeys.has(key)) {
                 combined.push(r);
+                dbKeys.add(key);
+                hasNewLocal = true;
             }
         });
 
-        // 정렬: 1차 tx_date 내림차순, 2차 created_at/id 내림차순
-        combined.sort((a, b) => {
+        if (hasNewLocal || dbList.length > 0) {
+            this._setLocal('mymoney_gamedues_income', combined);
+            if (hasNewLocal) {
+                try {
+                    await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_income', value: combined });
+                } catch(e) {}
+            }
+        }
+
+        let filtered = combined;
+        if (filters.startDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) >= Utils.formatDate(filters.startDate));
+        if (filters.endDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) <= Utils.formatDate(filters.endDate));
+
+        filtered.sort((a, b) => {
             const dComp = String(b.tx_date).localeCompare(String(a.tx_date));
             if (dComp !== 0) return dComp;
             return String(b.created_at || '').localeCompare(String(a.created_at || ''));
         });
 
-        return combined;
+        return filtered;
     },
 
     async getGameDuesExpense(filters = {}) {
         let dbList = [];
         try {
-            let q = supabase.from('game_dues_expense').select('*').order('tx_date', { ascending: false }).order('created_at', { ascending: false });
-            if (filters.startDate) q = q.gte('tx_date', Utils.formatDate(filters.startDate));
-            if (filters.endDate) q = q.lte('tx_date', Utils.formatDate(filters.endDate));
-            const { data, error } = await q;
-            if (!error && data) dbList = data;
+            const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'mymoney_gamedues_expense').single();
+            if (!error && data && Array.isArray(data.value)) {
+                dbList = data.value;
+            }
         } catch(e) {}
 
         const localList = this._getLocal('mymoney_gamedues_expense', []);
-        const dbIds = new Set(dbList.map(r => String(r.id)));
+        const dbKeys = new Set(dbList.map(r => `${Utils.formatDate(r.tx_date)}_${Utils.parseAmount(r.amount)}_${String(r.title || '').trim()}`));
         const combined = [...dbList];
 
+        let hasNewLocal = false;
         localList.forEach(r => {
-            if (!dbIds.has(String(r.id))) {
+            const key = `${Utils.formatDate(r.tx_date)}_${Utils.parseAmount(r.amount)}_${String(r.title || '').trim()}`;
+            if (!dbKeys.has(key)) {
                 combined.push(r);
+                dbKeys.add(key);
+                hasNewLocal = true;
             }
         });
 
-        combined.sort((a, b) => {
+        if (hasNewLocal || dbList.length > 0) {
+            this._setLocal('mymoney_gamedues_expense', combined);
+            if (hasNewLocal) {
+                try {
+                    await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_expense', value: combined });
+                } catch(e) {}
+            }
+        }
+
+        let filtered = combined;
+        if (filters.startDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) >= Utils.formatDate(filters.startDate));
+        if (filters.endDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) <= Utils.formatDate(filters.endDate));
+
+        filtered.sort((a, b) => {
             const dComp = String(b.tx_date).localeCompare(String(a.tx_date));
             if (dComp !== 0) return dComp;
             return String(b.created_at || '').localeCompare(String(a.created_at || ''));
         });
 
-        return combined;
+        return filtered;
     },
 
     async addGameDuesIncome(item) {
         const payload = {
+            id: 'inc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             tx_date: Utils.formatDate(item.tx_date),
             member_name: (item.member_name || '').trim().toUpperCase(),
             amount: Math.abs(Utils.parseAmount(item.amount)),
-            memo: (item.memo || '').trim()
+            memo: (item.memo || '').trim(),
+            created_at: item.created_at || new Date().toISOString()
         };
-        if (item.created_at) payload.created_at = item.created_at;
 
-        // 로컬스토리지에 항상 즉시 저장 (유실 방지)
-        const local = { ...payload, id: 'local_inc_' + Date.now(), created_at: payload.created_at || new Date().toISOString() };
-        const list = this._getLocal('mymoney_gamedues_income', []);
-        list.unshift(local);
+        const list = await this.getGameDuesIncome();
+        list.unshift(payload);
         this._setLocal('mymoney_gamedues_income', list);
 
         try {
-            const { data, error } = await supabase.from('game_dues_income').insert(payload).select().single();
-            if (!error && data) {
-                // Supabase 성공 시 로컬 아이템 ID 동기화
-                local.id = data.id;
-                this._setLocal('mymoney_gamedues_income', list);
-                return data;
-            }
+            await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_income', value: list });
         } catch(e) {}
 
         window.AppVersion?.updateSyncStatus();
-        return local;
+        return payload;
     },
 
     async addGameDuesExpense(item) {
         const payload = {
+            id: 'exp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             tx_date: Utils.formatDate(item.tx_date),
             title: (item.title || '게임회비 지출').trim(),
             amount: Math.abs(Utils.parseAmount(item.amount)),
-            memo: (item.memo || '').trim()
+            memo: (item.memo || '').trim(),
+            created_at: item.created_at || new Date().toISOString()
         };
-        if (item.created_at) payload.created_at = item.created_at;
 
-        const local = { ...payload, id: 'local_exp_' + Date.now(), created_at: payload.created_at || new Date().toISOString() };
-        const list = this._getLocal('mymoney_gamedues_expense', []);
-        list.unshift(local);
+        const list = await this.getGameDuesExpense();
+        list.unshift(payload);
         this._setLocal('mymoney_gamedues_expense', list);
 
         try {
-            const { data, error } = await supabase.from('game_dues_expense').insert(payload).select().single();
-            if (!error && data) {
-                local.id = data.id;
-                this._setLocal('mymoney_gamedues_expense', list);
-                window.AppVersion?.updateSyncStatus();
-                return data;
-            }
+            await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_expense', value: list });
         } catch(e) {}
 
         window.AppVersion?.updateSyncStatus();
-        return local;
+        return payload;
     },
 
     async updateGameDuesIncome(id, updates) {
-        const payload = {};
-        if (updates.tx_date !== undefined) payload.tx_date = Utils.formatDate(updates.tx_date);
-        if (updates.member_name !== undefined) payload.member_name = updates.member_name.trim().toUpperCase();
-        if (updates.amount !== undefined) payload.amount = Math.abs(Utils.parseAmount(updates.amount));
-        if (updates.memo !== undefined) payload.memo = updates.memo.trim();
-
-        try {
-            await supabase.from('game_dues_income').update(payload).eq('id', id);
-        } catch(e) {}
-
-        let list = this._getLocal('mymoney_gamedues_income', []);
+        const list = await this.getGameDuesIncome();
         const idx = list.findIndex(r => String(r.id) === String(id));
         if (idx !== -1) {
-            list[idx] = { ...list[idx], ...payload };
+            if (updates.tx_date !== undefined) list[idx].tx_date = Utils.formatDate(updates.tx_date);
+            if (updates.member_name !== undefined) list[idx].member_name = updates.member_name.trim().toUpperCase();
+            if (updates.amount !== undefined) list[idx].amount = Math.abs(Utils.parseAmount(updates.amount));
+            if (updates.memo !== undefined) list[idx].memo = updates.memo.trim();
+            list[idx].updated_at = new Date().toISOString();
+
             this._setLocal('mymoney_gamedues_income', list);
+            try {
+                await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_income', value: list });
+            } catch(e) {}
         }
         window.AppVersion?.updateSyncStatus();
         return true;
     },
 
     async updateGameDuesExpense(id, updates) {
-        const payload = {};
-        if (updates.tx_date !== undefined) payload.tx_date = Utils.formatDate(updates.tx_date);
-        if (updates.title !== undefined) payload.title = updates.title.trim();
-        if (updates.amount !== undefined) payload.amount = Math.abs(Utils.parseAmount(updates.amount));
-        if (updates.memo !== undefined) payload.memo = updates.memo.trim();
-
-        try {
-            await supabase.from('game_dues_expense').update(payload).eq('id', id);
-        } catch(e) {}
-
-        let list = this._getLocal('mymoney_gamedues_expense', []);
+        const list = await this.getGameDuesExpense();
         const idx = list.findIndex(r => String(r.id) === String(id));
         if (idx !== -1) {
-            list[idx] = { ...list[idx], ...payload };
+            if (updates.tx_date !== undefined) list[idx].tx_date = Utils.formatDate(updates.tx_date);
+            if (updates.title !== undefined) list[idx].title = updates.title.trim();
+            if (updates.amount !== undefined) list[idx].amount = Math.abs(Utils.parseAmount(updates.amount));
+            if (updates.memo !== undefined) list[idx].memo = updates.memo.trim();
+            list[idx].updated_at = new Date().toISOString();
+
             this._setLocal('mymoney_gamedues_expense', list);
+            try {
+                await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_expense', value: list });
+            } catch(e) {}
         }
         window.AppVersion?.updateSyncStatus();
         return true;
     },
 
     async deleteGameDuesIncome(id) {
-        try { await supabase.from('game_dues_income').delete().eq('id', id); } catch(e) {}
-        let list = this._getLocal('mymoney_gamedues_income', []);
+        let list = await this.getGameDuesIncome();
         list = list.filter(r => String(r.id) !== String(id));
         this._setLocal('mymoney_gamedues_income', list);
+        try {
+            await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_income', value: list });
+        } catch(e) {}
         window.AppVersion?.updateSyncStatus();
         return true;
     },
 
     async deleteGameDuesExpense(id) {
-        try { await supabase.from('game_dues_expense').delete().eq('id', id); } catch(e) {}
-        let list = this._getLocal('mymoney_gamedues_expense', []);
+        let list = await this.getGameDuesExpense();
         list = list.filter(r => String(r.id) !== String(id));
         this._setLocal('mymoney_gamedues_expense', list);
+        try {
+            await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_expense', value: list });
+        } catch(e) {}
         window.AppVersion?.updateSyncStatus();
         return true;
     },
