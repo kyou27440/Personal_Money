@@ -219,7 +219,8 @@ const GameDuesPage = {
                 <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
                     <div class="dues-section-title" style="font-size:0.95rem;">⛳ 일자별 모임 정산 피드 (스크린비·회식비·납부현황)</div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.forceReloadAll()" style="border-color:#818cf8;color:#818cf8;font-weight:700;padding:3px 9px;font-size:0.78rem;" title="클라우드에서 8월 26일 및 모든 모임 회비 강제 새로고침">🔄 8/26 및 전체 동기화</button>
+                        <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.resetAllDuesData()" style="border-color:rgba(244,63,94,0.4);color:#fb7185;font-weight:700;padding:3px 9px;font-size:0.78rem;" title="게임회비 입출금 내역 전체 비우기 (가계부는 보존)">🗑️ 전체 내역 비우기</button>
+                        <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.forceReloadAll()" style="border-color:#818cf8;color:#818cf8;font-weight:700;padding:3px 9px;font-size:0.78rem;" title="클라우드 동기화 새로고침">🔄 동기화</button>
                         <button class="btn btn-ghost btn-sm" id="btn-sync-from-ledger-round" style="border-color:#fbbf24;color:#fbbf24;font-weight:700;padding:3px 9px;font-size:0.78rem;">⚡ 가계부에서 회비 자동 가져오기</button>
                         <button class="btn btn-primary btn-sm" onclick="GameDuesPage.openExpenseModal()" style="padding:3px 9px;font-size:0.78rem;">+ 지출 등록</button>
                         <button class="btn btn-emerald btn-sm" onclick="GameDuesPage.openIncomeModal()" style="background:#10b981;color:#fff;padding:3px 9px;font-size:0.78rem;">+ 입금 등록</button>
@@ -1668,6 +1669,30 @@ const GameDuesPage = {
 
         Utils.toast(`🎉 총 ${unrecordedList.length}건의 본인 회비가 개인 가계부 지출로 등록되었습니다!`, 'success');
         await this.refresh();
+    },
+
+    /** 게임회비 입출금 내역 전체 비우기 (운영 로직 및 가계부는 100% 보존) */
+    async resetAllDuesData() {
+        const ok = confirm('⚠️ 게임회비 입금 및 지출 내역을 전부 삭제할까요?\n(개인 가계부 데이터는 삭제되지 않고 안전하게 보존됩니다)');
+        if (!ok) return;
+
+        this._incomeList = [];
+        this._expenseList = [];
+        localStorage.removeItem(this._KEY_INC);
+        localStorage.removeItem(this._KEY_EXP);
+        localStorage.removeItem('mymoney_gamedues_deleted_ids');
+
+        try {
+            await supabase.from('app_settings').upsert([
+                { key: 'mymoney_gamedues_income', value: [] },
+                { key: 'mymoney_gamedues_expense', value: [] }
+            ]);
+        } catch(e) {}
+
+        Store._invalidateGameDuesCache();
+        Store._logRevision('🗑️ 게임회비 내역 전체 비우기', '입출금 데이터 초기화');
+        this._refreshAll();
+        Utils.toast('게임회비 입출금 내역이 모두 깨끗하게 비워졌습니다.', 'success');
     }
 };
 
