@@ -339,11 +339,12 @@ const PersonalPage = {
             return;
         }
 
-        const expenseMap = {};
-        let totalExpense = 0;
         let totalIncome = 0;
+        let totalExpense = 0;
+        const expenseMap = {};
 
         txList.forEach(tx => {
+            if (tx.is_game_dues) return; // 게임회비 이전 거래는 점유율/지출통계에서 제외
             const amt = Utils.parseAmount(tx.amount);
             const isIncome = String(tx.type).trim().toLowerCase() === 'income';
             if (isIncome) {
@@ -489,6 +490,7 @@ const PersonalPage = {
         this.cachedTransactions = txList;
         tbody.innerHTML = txList.map(tx => {
             const isIncome = String(tx.type).trim().toLowerCase() === 'income';
+            const isExcludedDues = !!tx.is_game_dues;
             const methodLabel = tx.payment_method === 'cash' ? '💵 현금' : '💳 계좌이체';
             const methodClass = tx.payment_method === 'cash' ? 'badge-amber' : 'badge-indigo';
             const typeBadge = isIncome ? '<span class="badge badge-income">수입</span>' : '<span class="badge badge-expense">지출</span>';
@@ -497,39 +499,45 @@ const PersonalPage = {
             const amt = Utils.parseAmount(tx.amount);
             if (amt === 0) hasZeroTx = true;
 
-            const isDues = Utils.isLikelyGameDues(tx.type, tx.memo);
+            const isDues = !isExcludedDues && Utils.isLikelyGameDues(tx.type, tx.memo);
             const memoStr = String(tx.memo || '').trim();
             const isLongMemo = memoStr.length > 25 || /(?:VNPAY|scanning QR|TRANSFER|CK|IB|VCB|BIDV|MBBANK|TECHCOM)/i.test(memoStr);
             const isImported = isLongMemo || memoStr === '가져오기' || /(?:TRANSFER|CK|IB)/i.test(memoStr);
             const dateDisplay = isImported ? Utils.formatDateKR(tx.tx_date) : Utils.formatDateTimeKR(tx.tx_date, tx.created_at);
 
+            // 취소선 스타일 정의
+            const strikeStyle = isExcludedDues ? 'text-decoration: line-through; opacity: 0.6;' : '';
+            const rowBg = isExcludedDues ? 'background: rgba(251,191,36,0.04);' : '';
+
             return `
-            <tr ondblclick="PersonalPage.editTx('${tx.id}')" style="cursor:pointer" title="더블클릭하여 이 거래 전체 수정">
+            <tr ondblclick="PersonalPage.editTx('${tx.id}')" style="cursor:pointer;${rowBg}" title="${isExcludedDues ? '게임회비로 이전되어 가계부 미반영 상태 (취소선)' : '더블클릭하여 이 거래 전체 수정'}">
                 <td style="text-align:center" onclick="event.stopPropagation()">
                     <input type="checkbox" class="tx-cb" data-id="${tx.id}" data-amount="${amt}" data-date="${tx.tx_date}" style="cursor:pointer;width:16px;height:16px">
                 </td>
-                <td style="white-space:nowrap;font-weight:500">${dateDisplay}</td>
-                <td>${typeBadge}</td>
-                <td><span class="badge ${methodClass}" style="font-size:0.75rem;padding:2px 8px">${methodLabel}</span></td>
-                <td onclick="event.stopPropagation()">
+                <td style="white-space:nowrap;font-weight:500;${strikeStyle}">${dateDisplay}</td>
+                <td style="${strikeStyle}">${typeBadge}</td>
+                <td style="${strikeStyle}"><span class="badge ${methodClass}" style="font-size:0.75rem;padding:2px 8px">${methodLabel}</span></td>
+                <td onclick="event.stopPropagation()" style="${strikeStyle}">
                     <button class="btn btn-ghost btn-sm" onclick="PersonalPage.quickEditCategory('${tx.id}')" style="padding:2px 6px;font-size:0.78rem;border-color:rgba(255,255,255,0.12);" title="클릭하여 카테고리 즉시 변경">
                         ${tx.personal_categories?.icon || '💰'} ${Utils.escapeHtml(tx.personal_categories?.name || '기타')} ▾
                     </button>
                 </td>
-                <td style="text-align:right;font-weight:600" class="${colorClass}">${sign}${Utils.formatVND(tx.amount)}</td>
+                <td style="text-align:right;font-weight:600;${strikeStyle}" class="${colorClass}">${sign}${Utils.formatVND(tx.amount)}</td>
                 <td class="text-secondary" onclick="event.stopPropagation()" style="max-width:280px;">
                     <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;" title="${Utils.escapeHtml(memoStr)}">
+                        ${isExcludedDues ? '<span class="badge" style="background:rgba(251,191,36,0.15);color:#fbbf24;font-size:0.7rem;padding:1px 6px;border:1px solid rgba(251,191,36,0.3);font-weight:700;">🎮 게임회비 이전됨 (미반영)</span>' : ''}
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;${strikeStyle}" title="${Utils.escapeHtml(memoStr)}">
                             ${Utils.escapeHtml(memoStr || '—')}
                         </span>
                         <button class="btn btn-icon btn-sm" onclick="PersonalPage.quickEditMemo('${tx.id}')" style="padding:1px 4px;font-size:0.7rem;" title="메모 직접 수정">✏️</button>
                         ${isLongMemo ? `<button class="btn btn-ghost btn-sm" onclick="PersonalPage.quickCleanMemo('${tx.id}')" style="padding:1px 5px;font-size:0.7rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="긴 은행 전문/불필요 텍스트 깔끔히 정리">🧹정리</button>` : ''}
                         ${isDues ? `<button class="btn btn-ghost btn-sm" onclick="PersonalPage.moveToGameDues('${tx.id}')" style="padding:1px 6px;font-size:0.72rem;border-color:rgba(251,191,36,0.5);color:#fbbf24;" title="가계부에서 분리하여 게임회비로 이전">🎮 회비로 이전</button>` : ''}
+                        ${isExcludedDues ? `<button class="btn btn-ghost btn-sm" onclick="PersonalPage.revertFromGameDues('${tx.id}')" style="padding:1px 6px;font-size:0.72rem;border-color:rgba(129,140,248,0.5);color:#818cf8;" title="취소선 제거하고 다시 가계부 정상 반영">↩️ 가계부로 환원</button>` : ''}
                     </div>
                 </td>
                 <td style="white-space:nowrap" onclick="event.stopPropagation()">
                     <button class="btn btn-icon btn-sm" onclick="PersonalPage.editTx('${tx.id}')" title="상세 수정">✏️</button>
-                    <button class="btn btn-icon btn-sm" onclick="PersonalPage.moveToGameDues('${tx.id}')" title="게임회비로 분리 이전" style="color:#fbbf24">🎮</button>
+                    ${!isExcludedDues ? `<button class="btn btn-icon btn-sm" onclick="PersonalPage.moveToGameDues('${tx.id}')" title="게임회비로 분리 이전" style="color:#fbbf24">🎮</button>` : ''}
                     <button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteTx('${tx.id}')" title="삭제">🗑️</button>
                 </td>
             </tr>
@@ -714,7 +722,7 @@ const PersonalPage = {
         });
     },
 
-    /** 단일 거래를 게임회비로 분리 이전 */
+    /** 단일 거래를 게임회비로 분리 이전 (가계부에서는 취소선 및 미반영 상태로 보존) */
     async moveToGameDues(txId) {
         const tx = this.cachedTransactions.find(t => String(t.id) === String(txId));
         if (!tx) return;
@@ -722,16 +730,31 @@ const PersonalPage = {
         const name = Utils.extractMemberName(tx.memo);
         const isIncome = String(tx.type).trim().toLowerCase() === 'income';
         const msg = isIncome
-            ? `이 입금(${Utils.formatVND(tx.amount)})을 개인 가계부에서 제외하고, 🎮 [${name}] 게임회비 입금으로 이전할까요?`
+            ? `이 입금(${Utils.formatVND(tx.amount)})을 개인 가계부에서 제외하고, 🎮 [${name}] 게임회비 입금으로 이전할까요?\n(가계부에는 취소선으로 남아 중복 생성을 방지합니다)`
             : `이 지출(${Utils.formatVND(tx.amount)})을 개인 가계부에서 제외하고, 🎮 게임회비 지출로 이전할까요?`;
 
         if (!confirm(msg)) return;
 
         const success = await Store.convertPersonalTxToGameDues(tx);
         if (success) {
-            Utils.toast('🎮 게임회비로 성공적으로 이전되었습니다! (개인 가계부에서 분리됨)', 'success');
+            Utils.toast('🎮 게임회비로 성공적으로 이전되었습니다! (가계부 미반영 취소선 처리됨)', 'success');
             await this.refresh();
         }
+    },
+
+    /** 게임회비로 이전된 거래를 다시 개인 가계부 정상 거래로 복원 */
+    async revertFromGameDues(txId) {
+        const tx = this.cachedTransactions.find(t => String(t.id) === String(txId));
+        if (!tx) return;
+
+        const ok = confirm(`[${Utils.formatDateKR(tx.tx_date)} - ${Utils.formatVND(tx.amount)}]\n이 내역의 취소선을 제거하고 다시 [개인 가계부 정상 거래]로 복원할까요?`);
+        if (!ok) return;
+
+        const cleanMemo = (tx.memo || '').replace(/\[🎮\s*게임회비[^\]]*\]\s*/g, '').trim();
+        await Store.updateTransaction(tx.id, { memo: cleanMemo || (tx.type === 'income' ? '수입' : '지출') });
+
+        Utils.toast('✅ 개인 가계부 정상 거래로 복원되었습니다!', 'success');
+        await this.refresh();
     },
 
     async openTxModal(editTx = null) {
