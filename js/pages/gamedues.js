@@ -205,6 +205,7 @@ const GameDuesPage = {
                 <div class="dues-section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
                     <div class="dues-section-title" style="font-size:0.95rem;">⛳ 일자별 모임 정산 피드 (스크린비·회식비·납부현황)</div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.forceReloadAll()" style="border-color:#818cf8;color:#818cf8;font-weight:700;padding:3px 9px;font-size:0.78rem;" title="클라우드에서 8월 26일 및 모든 모임 회비 강제 새로고침">🔄 8/26 및 전체 동기화</button>
                         <button class="btn btn-ghost btn-sm" id="btn-sync-from-ledger-round" style="border-color:#fbbf24;color:#fbbf24;font-weight:700;padding:3px 9px;font-size:0.78rem;">⚡ 가계부에서 회비 자동 가져오기</button>
                         <button class="btn btn-primary btn-sm" onclick="GameDuesPage.openExpenseModal()" style="padding:3px 9px;font-size:0.78rem;">+ 지출 등록</button>
                         <button class="btn btn-emerald btn-sm" onclick="GameDuesPage.openIncomeModal()" style="background:#10b981;color:#fff;padding:3px 9px;font-size:0.78rem;">+ 입금 등록</button>
