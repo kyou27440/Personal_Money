@@ -915,6 +915,23 @@ const ImportPage = {
             });
 
             this.updateSaveSummary();
+
+            // ─── 미분류 카테고리 안내 배너 (개인 가계부에 등록된 건이 있는 경우) ───
+            if (personalCount > 0 && resultBar) {
+                resultBar.innerHTML += `
+                <div style="margin-top:10px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:1.1rem;">🏷️</span>
+                        <div>
+                            <div style="font-weight:700;font-size:0.88rem;color:#818cf8;">가져온 ${personalCount}건 — 카테고리가 '기타'로 등록되었습니다</div>
+                            <div style="font-size:0.75rem;color:var(--text-muted);">가계부로 이동하여 각 항목의 카테고리를 클릭해 빠르게 변경하세요 (한 번 클릭으로 즉시 변경 가능)</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="Router.navigate('personal')" style="padding:4px 14px;font-weight:700;white-space:nowrap;">
+                        📊 가계부에서 카테고리 수정 →
+                    </button>
+                </div>`;
+            }
         }
     },
 
