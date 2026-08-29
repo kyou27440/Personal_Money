@@ -35,6 +35,42 @@ const Store = {
         this._gameDuesExpenseCacheTime = 0;
     },
 
+    // ─── 리비전 자동 기록 (add/update/delete 시 자동 호출) ───
+    _logRevision(action, detail = '') {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        const timeStr = `${hh}:${mm}:${ss}`;
+        const yyyy = now.getFullYear();
+        const mo = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mo}-${dd}`;
+
+        const entry = {
+            time: timeStr,
+            date: dateStr,
+            action,
+            detail: detail ? String(detail).slice(0, 60) : '',
+            version: (typeof APP_CONFIG !== 'undefined' ? APP_CONFIG.VERSION : '')
+        };
+
+        // localStorage에 최대 50건 유지
+        try {
+            const log = JSON.parse(localStorage.getItem('mymoney_revision_log') || '[]');
+            log.unshift(entry);
+            if (log.length > 50) log.length = 50;
+            localStorage.setItem('mymoney_revision_log', JSON.stringify(log));
+            localStorage.setItem('mymoney_last_sync_time', timeStr);
+            localStorage.setItem('mymoney_last_action', action);
+        } catch(e) {}
+
+        // 상단 배지 실시간 갱신
+        if (typeof AppVersion !== 'undefined' && AppVersion.updateSyncStatus) {
+            AppVersion.updateSyncStatus(timeStr, action);
+        }
+    },
+
     // ─── 로컬 오프라인 임시 드래프트 완전 제거 (동기화 완료 후 호출) ───
     _clearLocalDrafts() {
         const keysToRemove = [
