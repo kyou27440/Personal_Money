@@ -613,7 +613,8 @@ const ImportPage = {
             let memoText = memoParts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 45);
 
             // 사람 이름 입금인 경우 수입으로 자동 보정
-            if (type === 'expense' && Utils.isLikelyMemberName(memoText) && !/(?:송금|출금|결제|당발)/.test(memoText)) {
+            const extractedName = Utils.extractMemberName(memoText);
+            if (type === 'expense' && extractedName && extractedName.length >= 2 && !/(?:송금|출금|결제|당발|TRANSFER|DEBIT)/.test(memoText)) {
                 type = 'income';
             }
 
