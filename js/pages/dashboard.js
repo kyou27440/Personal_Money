@@ -86,17 +86,23 @@ const DashboardPage = {
     renderRecentActivity(txList) {
         let html = '<ul class="activity-list">';
         txList.forEach(tx => {
-            const icon = tx.type === 'income' ? '📥' : '📤';
+            const isExcludedDues = !!tx.is_game_dues;
+            const icon = tx.type === 'income' ? '📈' : (tx.personal_categories?.icon || '📉');
             const colorClass = tx.type === 'income' ? 'text-emerald' : 'text-rose';
             const sign = tx.type === 'income' ? '+' : '-';
             const methodTag = tx.payment_method === 'cash' ? '💵' : '💳';
-            html += `<li class="activity-item">
+            const strikeStyle = isExcludedDues ? 'text-decoration: line-through; opacity: 0.6;' : '';
+
+            html += `<li class="activity-item" style="${isExcludedDues ? 'background:rgba(251,191,36,0.04);' : ''}">
                 <div class="activity-icon">${icon}</div>
-                <div class="activity-info">
-                    <div class="activity-title">${methodTag} ${tx.personal_categories?.icon || ''} ${Utils.escapeHtml(tx.personal_categories?.name || '')} ${tx.memo ? '- ' + Utils.escapeHtml(tx.memo) : ''}</div>
+                <div class="activity-info" style="${strikeStyle}">
+                    <div class="activity-title">
+                        ${isExcludedDues ? '<span class="badge" style="background:rgba(251,191,36,0.15);color:#fbbf24;font-size:0.65rem;padding:1px 5px;border:1px solid rgba(251,191,36,0.3);margin-right:4px;">🎮 게임회비 이전됨</span>' : ''}
+                        ${methodTag} ${tx.personal_categories?.icon || ''} ${Utils.escapeHtml(tx.personal_categories?.name || '')} ${tx.memo ? '- ' + Utils.escapeHtml(tx.memo) : ''}
+                    </div>
                     <div class="activity-meta">${Utils.formatDateTimeKR(tx.tx_date, tx.created_at)}</div>
                 </div>
-                <div class="${colorClass}" style="font-weight:600;white-space:nowrap">${sign}${Utils.formatVND(tx.amount)}</div>
+                <div class="${colorClass}" style="font-weight:600;white-space:nowrap;${strikeStyle}">${sign}${Utils.formatVND(tx.amount)}</div>
             </li>`;
         });
         html += '</ul>';
