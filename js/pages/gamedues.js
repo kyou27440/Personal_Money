@@ -182,12 +182,14 @@ const GameDuesPage = {
                     </div>
                     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
                         <span style="font-size:0.75rem;color:var(--text-muted);background:rgba(255,255,255,0.05);padding:2px 7px;border-radius:6px;">수령 - 지출</span>
+                        <div id="dues-carryover-btn-wrap">
                         ${S.balance > 0 ? `
                         <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openCarryoverModal(${S.balance})"
                             style="padding:2px 9px;font-size:0.72rem;border-color:rgba(251,191,36,0.5);color:#fbbf24;font-weight:700;white-space:nowrap;"
                             title="잔액을 다음 모임 날짜의 입금으로 이월 등록">
                             🔄 다음 모임 이월
                         </button>` : ''}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1505,6 +1507,27 @@ const GameDuesPage = {
         set('dues-val-myshortfall-sub', S.totalMembers > 0
             ? `${S.totalMembers}명 × ${Utils.formatVND(S.perPerson)}`
             : '설정 필요');
+
+        // 잔액 색상 동적 업데이트
+        const balEl = document.getElementById('dues-val-balance');
+        if (balEl) {
+            balEl.style.color = S.balance > 0 ? '#34d399' : (S.balance < 0 ? '#fb7185' : '#818cf8');
+        }
+
+        // 이월 버튼 동적 갱신 (잔액 > 0 시 표시, 0 이하 시 숨김)
+        const carryoverBtnWrap = document.getElementById('dues-carryover-btn-wrap');
+        if (carryoverBtnWrap) {
+            if (S.balance > 0) {
+                carryoverBtnWrap.innerHTML = `
+                    <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openCarryoverModal(${S.balance})"
+                        style="padding:2px 9px;font-size:0.72rem;border-color:rgba(251,191,36,0.5);color:#fbbf24;font-weight:700;white-space:nowrap;"
+                        title="잔액을 다음 모임 날짜의 입금으로 이월 등록">
+                        🔄 다음 모임 이월
+                    </button>`;
+            } else {
+                carryoverBtnWrap.innerHTML = '';
+            }
+        }
 
         set('disp-per-person', Utils.formatVND(S.perPerson));
         set('disp-members', `${S.totalMembers}명`);
