@@ -485,57 +485,186 @@ const ImportPage = {
 
     _extractFromOCRText(text) {
         const rows = [];
+        if (!text || !text.trim()) return rows;
+
         const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-        const incomeKw = /입금|수입|적립|환급|이자|급여|월급|매출|받음/;
-        const expenseKw = /출금|지출|결제|이체|납부|사용|인출/;
+        // 키워드 정규식
+        const incomeKw = /(?:\+|입금|수입|적립|환급|이자|급여|월급|매출|받음|충전|예금|타행입금|CD입금|nhận|thu|nạp|chuyển đến|cộng|deposit|credit|income|received)/i;
+        const expenseKw = /(?:-|−|출금|지출|결제|이체|송금|납부|사용|인출|차감|승인|체크|타행이체|CD출금|자동이체|rút|chi|chuyển đi|trừ|thanh toán|payment|withdraw|debit|expense|spent)/i;
+        const balanceKw = /(?:잔액|잔고|통장잔액|차기잔액|số dư|so du|balance|bal:|sd:)/i;
+
+        // 날짜 파서 헬퍼
+        const parseDateAndTimeString = (str) => {
+            let date = null;
+            let time = null;
+
+            // 1. 한국식/국제식 YYYY.MM.DD or YYYY-MM-DD or YYYY/MM/DD or YYYY년 MM월 DD일
+            const ymdMatch = str.match(/(\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/);
+            // 2. 2자리 연도 26.08.28 or 26/08/28
+            const y2mdMatch = str.match(/(?:^|[^\d])(\d{2})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+            // 3. 베트남/유럽식 DD/MM/YYYY
+            const dmyMatch = str.match(/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/);
+            // 4. 단축 MM.DD or MM/DD or MM월 DD일
+            const mdMatch = str.match(/(?:^|[^\d])(\d{1,2})[.\-\/월]\s*(\d{1,2})(?:일)?/);
+
+            if (ymdMatch) {
+                date = `${ymdMatch[1]}-${String(ymdMatch[2]).padStart(2, '0')}-${String(ymdMatch[3]).padStart(2, '0')}`;
+            } else if (dmyMatch) {
+                date = `${dmyMatch[3]}-${String(dmyMatch[2]).padStart(2, '0')}-${String(dmyMatch[1]).padStart(2, '0')}`;
+            } else if (y2mdMatch) {
+                date = `20${y2mdMatch[1]}-${String(y2mdMatch[2]).padStart(2, '0')}-${String(y2mdMatch[3]).padStart(2, '0')}`;
+            } else if (mdMatch) {
+                const now = new Date();
+                date = `${now.getFullYear()}-${String(mdMatch[1]).padStart(2, '0')}-${String(mdMatch[2]).padStart(2, '0')}`;
+            }
+
+            // 시간 파싱 (HH:mm:ss or HH:mm or 오전/오후 HH:mm)
+            const timeMatch = str.match(/(?:(?:오전|오후|AM|PM)\s*)?(\d{1,2}):(\d{2})(?::(\d{2}))?/i);
+            if (timeMatch) {
+                let hh = parseInt(timeMatch[1], 10);
+                const mm = String(timeMatch[2]).padStart(2, '0');
+                const ss = timeMatch[3] ? String(timeMatch[3]).padStart(2, '0') : '00';
+                if (/오후|PM/i.test(str) && hh < 12) hh += 12;
+                if (/오전|AM/i.test(str) && hh === 12) hh = 0;
+                time = `${String(hh).padStart(2, '0')}:${mm}:${ss}`;
+            }
+
+            return { date, time };
+        };
+
+        // 금액 파서 헬퍼 (잔액 제외 및 거래금액 정밀 추출)
+        const extractAmounts = (lineStr) => {
+            // 잔액 라벨 뒤에 오는 금액은 분리
+            let cleanForAmount = lineStr;
+            const balIdx = lineStr.search(balanceKw);
+            if (balIdx !== -1) {
+                cleanForAmount = lineStr.slice(0, balIdx);
+            }
+
+            // 베트남 점 표기 (100.000, 2.500.000) 및 쉼표 표기 (100,000) 모두 탐색
+            const matches = [...cleanForAmount.matchAll(/([+-−]?\s*\d{1,3}(?:[.,]\d{3})+(?:\s*(?:원|VND|đ|VND))?|[+-−]?\s*\d{4,}(?:\s*(?:원|VND|đ|VND))?)/gi)];
+            const results = [];
+
+            for (const m of matches) {
+                const fullStr = m[0];
+                const rawNum = Utils.parseAmount(fullStr);
+                if (rawNum >= 100) {
+                    const isNeg = /[-−]/.test(fullStr);
+                    const isPos = /\+/.test(fullStr);
+                    results.push({ amount: Math.abs(rawNum), isNeg, isPos, rawText: fullStr });
+                }
+            }
+            return results;
+        };
+
+        // 1단계: 단일 행 단위 검사
+        const processedLineIndices = new Set();
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
+            const dt = parseDateAndTimeString(line);
+            const amtList = extractAmounts(line);
 
-            const dateMatch = line.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
-            const dateMatchShort = line.match(/(\d{1,2})[.\-\/](\d{1,2})/);
+            if (dt.date && amtList.length > 0) {
+                processedLineIndices.add(i);
+                const targetAmtObj = amtList[0];
+                const mainAmt = targetAmtObj.amount;
 
-            const amountMatches = [...line.matchAll(/([+-]?\d{1,3}(?:,\d{3})+|\d{4,})/g)];
-            if (amountMatches.length === 0) continue;
+                let type = 'expense';
+                if (targetAmtObj.isPos || (incomeKw.test(line) && !targetAmtObj.isNeg)) {
+                    type = 'income';
+                } else if (targetAmtObj.isNeg || expenseKw.test(line)) {
+                    type = 'expense';
+                } else {
+                    // 사람 이름 입금 여부 판별
+                    const name = Utils.extractMemberName(line);
+                    if (name && !expenseKw.test(line)) {
+                        type = 'income';
+                    }
+                }
 
-            let parsedDate = null;
-            if (dateMatch) {
-                parsedDate = `${dateMatch[1]}-${String(dateMatch[2]).padStart(2,'0')}-${String(dateMatch[3]).padStart(2,'0')}`;
-            } else if (dateMatchShort) {
-                const now = new Date();
-                parsedDate = `${now.getFullYear()}-${String(dateMatchShort[1]).padStart(2,'0')}-${String(dateMatchShort[2]).padStart(2,'0')}`;
+                const memoText = line
+                    .replace(/\d{4}[.\-\/년]\s*\d{1,2}[.\-\/월]\s*\d{1,2}(?:일)?/g, '')
+                    .replace(/(?:오전|오후|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?/gi, '')
+                    .replace(/\d{1,3}(?:[.,]\d{3})+/g, '')
+                    .replace(/\d{4,}/g, '')
+                    .replace(/[+\-−=│|]/g, '')
+                    .replace(/원|VND|đ|잔액|출금|입금|이체|승인/gi, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .slice(0, 45);
+
+                const createdAt = dt.time ? `${dt.date}T${dt.time}` : `${dt.date}T12:00:00`;
+
+                rows.push({
+                    _idx: `ocr_${i}_${Date.now()}_${Math.random()}`,
+                    date: dt.date,
+                    created_at: createdAt,
+                    type,
+                    amount: mainAmt,
+                    memo: memoText || (type === 'income' ? '수입' : '지출'),
+                    method: 'transfer',
+                    isDup: false
+                });
             }
+        }
 
-            if (!parsedDate) continue;
+        // 2단계: 멀티라인 블록 파싱 (날짜, 적요, 금액이 2~3줄에 걸쳐 나뉜 경우)
+        for (let i = 0; i < lines.length; i++) {
+            if (processedLineIndices.has(i)) continue;
 
-            const amounts = amountMatches.map(m => this._parseNumber(m[1])).filter(a => a > 0);
-            if (amounts.length === 0) continue;
-            const mainAmt = Math.max(...amounts);
-            if (mainAmt < 100) continue;
+            const dt = parseDateAndTimeString(lines[i]);
+            if (dt.date) {
+                // 다음 1~3줄 내에서 금액 및 적요 탐색
+                for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
+                    if (processedLineIndices.has(j)) break;
 
-            let type = 'expense';
-            const isNegative = /[-−]\s*\d/.test(line);
-            if (incomeKw.test(line) && !isNegative) type = 'income';
-            if (expenseKw.test(line) || isNegative) type = 'expense';
+                    const nextLine = lines[j];
+                    const amtList = extractAmounts(nextLine);
 
-            const memoText = line
-                .replace(/\d{4}[.\-\/]\d{1,2}[.\-\/]\d{1,2}/g, '')
-                .replace(/\d{1,3}(?:,\d{3})+/g, '')
-                .replace(/[+\-=|│]/g, '')
-                .replace(/\s+/g, ' ')
-                .trim()
-                .slice(0, 40);
+                    if (amtList.length > 0) {
+                        const targetAmtObj = amtList[0];
+                        const mainAmt = targetAmtObj.amount;
+                        const blockText = `${lines[i]} ${nextLine} ${lines[j-1] || ''}`;
 
-            rows.push({
-                _idx: `ocr_${i}_${Date.now()}`,
-                date: parsedDate,
-                type,
-                amount: mainAmt,
-                memo: memoText,
-                method: 'transfer',
-                isDup: false,
-            });
+                        let type = 'expense';
+                        if (targetAmtObj.isPos || (incomeKw.test(blockText) && !targetAmtObj.isNeg)) {
+                            type = 'income';
+                        } else if (targetAmtObj.isNeg || expenseKw.test(blockText)) {
+                            type = 'expense';
+                        }
+
+                        let memoText = blockText
+                            .replace(/\d{4}[.\-\/년]\s*\d{1,2}[.\-\/월]\s*\d{1,2}(?:일)?/g, '')
+                            .replace(/(?:오전|오후|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?/gi, '')
+                            .replace(/\d{1,3}(?:[.,]\d{3})+/g, '')
+                            .replace(/\d{4,}/g, '')
+                            .replace(/[+\-−=│|]/g, '')
+                            .replace(/원|VND|đ|잔액|출금|입금|이체|승인/gi, '')
+                            .replace(/\s+/g, ' ')
+                            .trim()
+                            .slice(0, 45);
+
+                        processedLineIndices.add(i);
+                        processedLineIndices.add(j);
+
+                        const createdAt = dt.time ? `${dt.date}T${dt.time}` : `${dt.date}T12:00:00`;
+
+                        rows.push({
+                            _idx: `ocr_blk_${i}_${j}_${Date.now()}`,
+                            date: dt.date,
+                            created_at: createdAt,
+                            type,
+                            amount: mainAmt,
+                            memo: memoText || (type === 'income' ? '수입' : '지출'),
+                            method: 'transfer',
+                            isDup: false
+                        });
+                        break;
+                    }
+                }
+            }
         }
 
         return rows;
