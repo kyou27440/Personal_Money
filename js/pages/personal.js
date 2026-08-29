@@ -126,12 +126,23 @@ const PersonalPage = {
                 <option value="amount-desc">💰 금액 높은순</option>
                 <option value="amount-asc">💰 금액 낮은순</option>
             </select>
-            <select id="filter-dues-display" style="border-color:rgba(251,191,36,0.4);color:#fbbf24;background:var(--bg-input);font-size:0.8rem;padding:5px 8px;border-radius:8px;" title="게임회비로 이전된 내역의 표시 방식 설정">
-                <option value="badge" ${localStorage.getItem('mymoney_dues_display_mode') === 'badge' || !localStorage.getItem('mymoney_dues_display_mode') ? 'selected' : ''}>🎮 회비이전: 배지+취소선</option>
-                <option value="clean" ${localStorage.getItem('mymoney_dues_display_mode') === 'clean' ? 'selected' : ''}>🎮 회비이전: 멘트숨김 (취소선만)</option>
-                <option value="hide" ${localStorage.getItem('mymoney_dues_display_mode') === 'hide' ? 'selected' : ''}>🎮 회비이전: 목록에서 완전 숨김</option>
-            </select>
             <button class="btn btn-ghost btn-sm" id="btn-filter-tx">🔍 조회</button>
+            <button class="btn btn-ghost btn-sm" id="btn-dues-display-toggle"
+                    style="padding:4px 9px;font-size:0.78rem;border-color:rgba(251,191,36,0.4);color:#fbbf24;"
+                    title="게임회비 이전 내역 표시 방식 설정">
+                ⚙️ 회비표시
+            </button>
+        </div>
+
+        <!-- 회비이전 표시 설정 패널 (기본 숨김) -->
+        <div id="dues-display-panel" class="hidden mb-lg" style="background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="font-size:0.82rem;font-weight:700;color:#fbbf24;">🎮 게임회비 이전 내역 표시 방식:</span>
+            <select id="filter-dues-display" style="border-color:rgba(251,191,36,0.4);color:#fbbf24;background:var(--bg-input);font-size:0.82rem;padding:5px 10px;border-radius:8px;" title="게임회비로 이전된 내역의 표시 방식 설정">
+                <option value="badge" ${localStorage.getItem('mymoney_dues_display_mode') === 'badge' || !localStorage.getItem('mymoney_dues_display_mode') ? 'selected' : ''}>🎮 배지 + 취소선 (기본)</option>
+                <option value="clean" ${localStorage.getItem('mymoney_dues_display_mode') === 'clean' ? 'selected' : ''}>✏️ 취소선만 (멘트 숨김)</option>
+                <option value="hide" ${localStorage.getItem('mymoney_dues_display_mode') === 'hide' ? 'selected' : ''}>🚫 목록에서 완전 숨김</option>
+            </select>
+            <span style="font-size:0.75rem;color:var(--text-muted);">설정 변경 시 즉시 목록에 반영됩니다</span>
         </div>
 
         <div id="category-breakdown-container"></div>
@@ -173,6 +184,17 @@ const PersonalPage = {
         document.getElementById('btn-select-zero-tx')?.addEventListener('click', () => this.selectZeroTx());
         document.getElementById('btn-bulk-move-dues')?.addEventListener('click', () => this.bulkMoveToGameDues());
         document.getElementById('btn-ignore-all-dues')?.addEventListener('click', () => this.ignoreAllSuggestedDues());
+
+        // ─── ⚙️ 회비표시 설정 버튼 토글 ───
+        document.getElementById('btn-dues-display-toggle')?.addEventListener('click', () => {
+            const panel = document.getElementById('dues-display-panel');
+            const btn = document.getElementById('btn-dues-display-toggle');
+            if (panel) {
+                const isHidden = panel.classList.contains('hidden');
+                panel.classList.toggle('hidden', !isHidden);
+                if (btn) btn.style.background = isHidden ? 'rgba(251,191,36,0.15)' : '';
+            }
+        });
 
         // ─── 날짜 기간 숏컷 버튼 ───
         document.getElementById('btn-filter-all-time')?.addEventListener('click', () => {
