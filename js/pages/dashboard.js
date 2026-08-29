@@ -4,14 +4,33 @@
 
 const DashboardPage = {
     async render() {
-        const [balance, breakdown, exchangeTotal, recentTx] = await Promise.all([
-            Store.getTotalBalance(),
-            Store.getBalanceBreakdown(),
-            Store.getExchangeTotal(),
-            Store.getTransactions({ limit: 5 })
-        ]);
+        let balance = 0;
+        let breakdown = { cash: { balance: 0 }, transfer: { balance: 0 }, total: { balance: 0 } };
+        let exchangeTotal = { vnd: 0, krw: 0 };
+        let recentTx = [];
+        let monthSummary = { expense: 0, expenseCash: 0, expenseTransfer: 0, income: 0, incomeCash: 0, incomeTransfer: 0 };
 
-        const monthSummary = await Store.getTransactionSummary(Utils.monthStart(), Utils.monthEnd());
+        try {
+            const results = await Promise.allSettled([
+                Store.getTotalBalance(),
+                Store.getBalanceBreakdown(),
+                Store.getExchangeTotal(),
+                Store.getTransactions({ limit: 5 }),
+                Store.getTransactionSummary(Utils.monthStart(), Utils.monthEnd())
+            ]);
+
+            if (results[0].status === 'fulfilled') balance = results[0].value || 0;
+            if (results[1].status === 'fulfilled' && results[1].value) breakdown = results[1].value;
+            if (results[2].status === 'fulfilled' && results[2].value) exchangeTotal = results[2].value;
+            if (results[3].status === 'fulfilled' && Array.isArray(results[3].value)) recentTx = results[3].value;
+            if (results[4].status === 'fulfilled' && results[4].value) monthSummary = results[4].value;
+        } catch(e) {
+            console.error('Dashboard data load warning:', e);
+        }
+
+        const appVer = typeof AppVersion !== 'undefined' ? AppVersion.version : (typeof APP_CONFIG !== 'undefined' ? APP_CONFIG.VERSION : 'v5.9.3');
+        const appBuildDate = typeof AppVersion !== 'undefined' ? AppVersion.buildDate : (typeof APP_CONFIG !== 'undefined' ? APP_CONFIG.BUILD_DATE : '2026-08-29');
+        const appBuildDesc = typeof AppVersion !== 'undefined' ? AppVersion.buildDesc : (typeof APP_CONFIG !== 'undefined' ? APP_CONFIG.BUILD_DESC : '');
 
         return `
         <div class="version-banner" style="background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(16,185,129,0.15)); border: 1px solid rgba(99,102,241,0.3); border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
@@ -24,10 +43,10 @@ const DashboardPage = {
             </div>
             <div style="text-align:right;flex-shrink:0;">
                 <span class="badge" style="background:rgba(52,211,153,0.15);color:#34d399;font-size:0.85rem;padding:4px 10px;font-weight:700;border:1px solid rgba(52,211,153,0.3);">
-                    ${typeof AppVersion !== 'undefined' ? AppVersion.version : 'v5.7.0'} (${typeof AppVersion !== 'undefined' ? (AppVersion.buildDesc || '').slice(0, 22) + ((AppVersion.buildDesc || '').length > 22 ? '…' : '') : 'OCR 블록 파서 개편'})
+                    ${appVer} (${(appBuildDesc || '').slice(0, 22)}${(appBuildDesc || '').length > 22 ? '…' : ''})
                 </span>
                 <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">
-                    🕒 ${typeof AppVersion !== 'undefined' ? AppVersion.buildDate : '2026-08-29'} 업데이트 • <span style="color:#a7f3d0;">🟢 최신 반영됨</span>
+                    🕒 ${appBuildDate} 업데이트 • <span style="color:#a7f3d0;">🟢 최신 반영됨</span>
                 </div>
             </div>
         </div>
@@ -38,32 +57,32 @@ const DashboardPage = {
                 <div class="card-label">개인 자산 누적 잔액</div>
                 <div class="card-value">${Utils.formatVND(balance)}</div>
                 <div class="card-sub" style="display:flex;gap:12px;margin-top:4px;">
-                    <span>💵 현금: <strong>${Utils.formatVND(breakdown.cash.balance)}</strong></span>
-                    <span>💳 계좌: <strong>${Utils.formatVND(breakdown.transfer.balance)}</strong></span>
+                    <span>💵 현금: <strong>${Utils.formatVND(breakdown.cash?.balance || 0)}</strong></span>
+                    <span>💳 계좌: <strong>${Utils.formatVND(breakdown.transfer?.balance || 0)}</strong></span>
                 </div>
             </div>
             <div class="summary-card rose">
                 <div class="card-icon">📉</div>
                 <div class="card-label">이번 달 지출</div>
-                <div class="card-value">${Utils.formatVND(monthSummary.expense)}</div>
+                <div class="card-value">${Utils.formatVND(monthSummary.expense || 0)}</div>
                 <div class="card-sub" style="display:flex;gap:12px;margin-top:4px;">
-                    <span>💵 현금: <strong>${Utils.formatVND(monthSummary.expenseCash)}</strong></span>
-                    <span>💳 계좌: <strong>${Utils.formatVND(monthSummary.expenseTransfer)}</strong></span>
+                    <span>💵 현금: <strong>${Utils.formatVND(monthSummary.expenseCash || 0)}</strong></span>
+                    <span>💳 계좌: <strong>${Utils.formatVND(monthSummary.expenseTransfer || 0)}</strong></span>
                 </div>
             </div>
             <div class="summary-card amber">
                 <div class="card-icon">💱</div>
                 <div class="card-label">개인 환전 순 VND</div>
-                <div class="card-value">${Utils.formatVND(exchangeTotal.vnd)}</div>
-                <div class="card-sub">KRW: ${Utils.formatKRW(exchangeTotal.krw)}</div>
+                <div class="card-value">${Utils.formatVND(exchangeTotal.vnd || 0)}</div>
+                <div class="card-sub">KRW: ${Utils.formatKRW(exchangeTotal.krw || 0)}</div>
             </div>
             <div class="summary-card emerald">
                 <div class="card-icon">📈</div>
                 <div class="card-label">이번 달 수입</div>
-                <div class="card-value">${Utils.formatVND(monthSummary.income)}</div>
+                <div class="card-value">${Utils.formatVND(monthSummary.income || 0)}</div>
                 <div class="card-sub" style="display:flex;gap:12px;margin-top:4px;">
-                    <span>💵 현금: <strong>${Utils.formatVND(monthSummary.incomeCash)}</strong></span>
-                    <span>💳 계좌: <strong>${Utils.formatVND(monthSummary.incomeTransfer)}</strong></span>
+                    <span>💵 현금: <strong>${Utils.formatVND(monthSummary.incomeCash || 0)}</strong></span>
+                    <span>💳 계좌: <strong>${Utils.formatVND(monthSummary.incomeTransfer || 0)}</strong></span>
                 </div>
             </div>
         </div>
@@ -88,8 +107,12 @@ const DashboardPage = {
     },
 
     renderRecentActivity(txList) {
+        if (!Array.isArray(txList) || txList.length === 0) {
+            return '<div class="empty-state"><div class="empty-icon">📝</div><p class="empty-text">아직 거래 내역이 없습니다</p></div>';
+        }
         let html = '<ul class="activity-list">';
         txList.forEach(tx => {
+            if (!tx) return;
             const isExcludedDues = !!tx.is_game_dues;
             const icon = tx.type === 'income' ? '📈' : (tx.personal_categories?.icon || '📉');
             const colorClass = tx.type === 'income' ? 'text-emerald' : 'text-rose';
@@ -114,12 +137,16 @@ const DashboardPage = {
     },
 
     async afterRender() {
-        await this.renderMonthChart();
+        try {
+            await this.renderMonthChart();
+        } catch(e) {
+            console.warn('Month chart render warning:', e);
+        }
     },
 
     async renderMonthChart() {
         const canvas = document.getElementById('dash-month-chart');
-        if (!canvas) return;
+        if (!canvas || typeof Chart === 'undefined') return;
 
         const now = new Date();
         const labels = [];
@@ -131,28 +158,37 @@ const DashboardPage = {
             const start = d.toISOString().split('T')[0];
             const end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
             labels.push(`${d.getMonth() + 1}월`);
-            const s = await Store.getTransactionSummary(start, end);
-            incomeData.push(s.income);
-            expenseData.push(s.expense);
+            try {
+                const s = await Store.getTransactionSummary(start, end);
+                incomeData.push(s.income || 0);
+                expenseData.push(s.expense || 0);
+            } catch(e) {
+                incomeData.push(0);
+                expenseData.push(0);
+            }
         }
 
-        new Chart(canvas, {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [
-                    { label: '수입', data: incomeData, backgroundColor: 'rgba(16, 185, 129, 0.7)', borderRadius: 6 },
-                    { label: '지출', data: expenseData, backgroundColor: 'rgba(244, 63, 94, 0.7)', borderRadius: 6 }
-                ]
-            },
-            options: {
-                ...Utils.chartDefaults(),
-                plugins: {
-                    ...Utils.chartDefaults().plugins,
-                    tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${Utils.formatVND(ctx.raw)}` } }
+        try {
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: '수입', data: incomeData, backgroundColor: 'rgba(16, 185, 129, 0.7)', borderRadius: 6 },
+                        { label: '지출', data: expenseData, backgroundColor: 'rgba(244, 63, 94, 0.7)', borderRadius: 6 }
+                    ]
+                },
+                options: {
+                    ...Utils.chartDefaults(),
+                    plugins: {
+                        ...Utils.chartDefaults().plugins,
+                        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${Utils.formatVND(ctx.raw)}` } }
+                    }
                 }
-            }
-        });
+            });
+        } catch(e) {
+            console.warn('Chart creation warning:', e);
+        }
     }
 };
 
