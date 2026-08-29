@@ -69,13 +69,33 @@ const SettingsPage = {
         </div>
 
         <div class="settings-section">
-            <h3 class="settings-section-title">ℹ️ 정보</h3>
+            <h3 class="settings-section-title">ℹ️ 시스템 리비전 & 반영 시점 관리</h3>
             <div class="setting-row">
                 <div class="setting-label">
-                    <span class="label-title">Mony Dashboard</span>
-                    <span class="label-desc">v1.0 • 개인 자산 및 회사 모임(총무) 통합 대시보드</span>
+                    <span class="label-title">현재 리비전 (Version)</span>
+                    <span class="label-desc">${typeof AppVersion !== 'undefined' ? AppVersion.version : 'v5.5.0'} (${typeof AppVersion !== 'undefined' ? AppVersion.buildDate : '2026-08-29'})</span>
                 </div>
-                <div class="setting-control text-muted">
+                <div class="setting-control">
+                    <span class="badge" style="background:rgba(99,102,241,0.15);color:#818cf8;font-weight:700;">${typeof AppVersion !== 'undefined' ? AppVersion.version : 'v5.5.0'}</span>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span class="label-title">최근 데이터 반영 시점</span>
+                    <span class="label-desc" id="setting-last-sync">${localStorage.getItem('mymoney_last_sync_time') || '확인 중...'}</span>
+                </div>
+                <div class="setting-control">
+                    <button class="btn btn-ghost btn-sm" onclick="AppVersion.forceReload()" style="border-color:#818cf8;color:#818cf8;">
+                        🔄 즉시 최신 동기화 / 캐시 초기화
+                    </button>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span class="label-title">빌드 상세</span>
+                    <span class="label-desc">${typeof AppVersion !== 'undefined' ? AppVersion.buildDesc : ''}</span>
+                </div>
+                <div class="setting-control text-muted" style="font-size:0.75rem;">
                     GitHub Pages + Supabase
                 </div>
             </div>
