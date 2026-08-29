@@ -21,6 +21,20 @@ const DEFAULT_CATEGORIES = [
 const Store = {
     _isSyncing: false,
 
+    // ─── 게임회비 1분 인메모리 캐시 ───
+    _gameDuesIncomeCache: null,
+    _gameDuesIncomeCacheTime: 0,
+    _gameDuesExpenseCache: null,
+    _gameDuesExpenseCacheTime: 0,
+    _GAME_DUES_CACHE_TTL: 60000, // 60초
+
+    _invalidateGameDuesCache() {
+        this._gameDuesIncomeCache = null;
+        this._gameDuesIncomeCacheTime = 0;
+        this._gameDuesExpenseCache = null;
+        this._gameDuesExpenseCacheTime = 0;
+    },
+
     // ─── 로컬 오프라인 임시 드래프트 완전 제거 (동기화 완료 후 호출) ───
     _clearLocalDrafts() {
         const keysToRemove = [
@@ -758,6 +772,13 @@ const Store = {
     // ─── 게임회비 관리 (Supabase app_settings + club_games/club_dues 통합 실시간 동기화) ───
 
     async getGameDuesIncome(filters = {}) {
+        // 1분 인메모리 캐시 (필터 없는 전체 조회 시)
+        const now = Date.now();
+        const useCache = Object.keys(filters).length === 0;
+        if (useCache && this._gameDuesIncomeCache && (now - this._gameDuesIncomeCacheTime) < this._GAME_DUES_CACHE_TTL) {
+            return [...this._gameDuesIncomeCache];
+        }
+
         let dbList = [];
         try {
             const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'mymoney_gamedues_income').single();
@@ -821,6 +842,17 @@ const Store = {
             } catch(e) {}
         }
 
+        // 캐시 저장 (필터 없는 경우)
+        if (useCache) {
+            combined.sort((a, b) => {
+                const dComp = String(b.tx_date).localeCompare(String(a.tx_date));
+                if (dComp !== 0) return dComp;
+                return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+            });
+            this._gameDuesIncomeCache = combined;
+            this._gameDuesIncomeCacheTime = Date.now();
+        }
+
         let filtered = combined;
         if (filters.startDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) >= Utils.formatDate(filters.startDate));
         if (filters.endDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) <= Utils.formatDate(filters.endDate));
@@ -835,6 +867,13 @@ const Store = {
     },
 
     async getGameDuesExpense(filters = {}) {
+        // 1분 인메모리 캐시 (필터 없는 전체 조회 시)
+        const nowE = Date.now();
+        const useCacheE = Object.keys(filters).length === 0;
+        if (useCacheE && this._gameDuesExpenseCache && (nowE - this._gameDuesExpenseCacheTime) < this._GAME_DUES_CACHE_TTL) {
+            return [...this._gameDuesExpenseCache];
+        }
+
         let dbList = [];
         try {
             const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'mymoney_gamedues_expense').single();
@@ -898,6 +937,17 @@ const Store = {
             } catch(e) {}
         }
 
+        // 캐시 저장 (필터 없는 경우)
+        if (useCacheE) {
+            combined.sort((a, b) => {
+                const dComp = String(b.tx_date).localeCompare(String(a.tx_date));
+                if (dComp !== 0) return dComp;
+                return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+            });
+            this._gameDuesExpenseCache = combined;
+            this._gameDuesExpenseCacheTime = Date.now();
+        }
+
         let filtered = combined;
         if (filters.startDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) >= Utils.formatDate(filters.startDate));
         if (filters.endDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) <= Utils.formatDate(filters.endDate));
@@ -912,6 +962,7 @@ const Store = {
     },
 
     async addGameDuesIncome(item) {
+        this._invalidateGameDuesCache(); // 캐시 무효화
         const payload = {
             id: 'inc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             tx_date: Utils.formatDate(item.tx_date),
@@ -934,6 +985,7 @@ const Store = {
     },
 
     async addGameDuesExpense(item) {
+        this._invalidateGameDuesCache(); // 캐시 무효화
         const payload = {
             id: 'exp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             tx_date: Utils.formatDate(item.tx_date),
@@ -956,6 +1008,7 @@ const Store = {
     },
 
     async updateGameDuesIncome(id, updates) {
+        this._invalidateGameDuesCache(); // 캐시 무효화
         const list = await this.getGameDuesIncome();
         const idx = list.findIndex(r => String(r.id) === String(id));
         if (idx !== -1) {
@@ -975,6 +1028,7 @@ const Store = {
     },
 
     async updateGameDuesExpense(id, updates) {
+        this._invalidateGameDuesCache(); // 캐시 무효화
         const list = await this.getGameDuesExpense();
         const idx = list.findIndex(r => String(r.id) === String(id));
         if (idx !== -1) {
@@ -994,6 +1048,7 @@ const Store = {
     },
 
     async deleteGameDuesIncome(id) {
+        this._invalidateGameDuesCache(); // 캐시 무효화
         let list = await this.getGameDuesIncome();
         list = list.filter(r => String(r.id) !== String(id));
         this._setLocal('mymoney_gamedues_income', list);
@@ -1005,6 +1060,7 @@ const Store = {
     },
 
     async deleteGameDuesExpense(id) {
+        this._invalidateGameDuesCache(); // 캐시 무효화
         let list = await this.getGameDuesExpense();
         list = list.filter(r => String(r.id) !== String(id));
         this._setLocal('mymoney_gamedues_expense', list);
