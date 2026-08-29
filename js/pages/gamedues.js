@@ -435,7 +435,7 @@ const GameDuesPage = {
     /** 가계부에 남아있는 회비 입금 거래 자동 스캔 & 일괄 가져오기 */
     async syncFromLedger() {
         const allTx = await Store.getTransactions({ limit: 1000 });
-        const duesTxList = allTx.filter(t => Utils.isLikelyGameDues(t.type, t.memo));
+        const duesTxList = allTx.filter(t => !t.is_game_dues && Utils.isLikelyGameDues(t.type, t.memo));
 
         if (duesTxList.length === 0) {
             Utils.toast('가계부에 이전할 새로운 게임회비 입금 내역이 없습니다.', 'info');
@@ -443,25 +443,33 @@ const GameDuesPage = {
         }
 
         const totalAmt = duesTxList.reduce((s, t) => s + Utils.parseAmount(t.amount), 0);
-        const ok = confirm(`개인 가계부에서 감지된 ${duesTxList.length}건(총 ${Utils.formatVND(totalAmt)})의 멤버 회비 입금을\n가계부에서 제외하고 게임회비 관리로 가져올까요?`);
+        const ok = confirm(`개인 가계부에서 감지된 ${duesTxList.length}건(총 ${Utils.formatVND(totalAmt)})의 멤버 회비 입금을\n게임회비 관리로 가져올까요?\n(가계부에는 취소선으로 보존되어 중복 생성을 방지합니다)`);
         if (!ok) return;
 
         let successCount = 0;
         for (const tx of duesTxList) {
-            const name = Utils.extractMemberName(tx.memo);
-            await Store.addGameDuesIncome({
-                tx_date: tx.tx_date,
-                member_name: name,
-                amount: tx.amount,
-                memo: tx.memo,
-                created_at: tx.created_at
-            });
-            if (tx.id) await Store.deleteTransaction(tx.id);
+            await Store.convertPersonalTxToGameDues(tx);
             successCount++;
         }
 
         Utils.toast(`🎉 총 ${successCount}건의 게임회비를 가계부에서 가져왔습니다!`, 'success');
         await this.refresh();
+    },
+
+    /** 특정 모임 날짜 집중 보기 선택 */
+    selectDate(dateKey) {
+        this._selectedDate = dateKey;
+        this.renderGroupedView();
+        const container = document.getElementById('grouped-rounds-container');
+        if (container) {
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    },
+
+    /** 전체 모임 리스트로 복귀 */
+    clearSelectedDate() {
+        this._selectedDate = null;
+        this.renderGroupedView();
     },
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -521,7 +529,45 @@ const GameDuesPage = {
             return;
         }
 
-        container.innerHTML = sortedDates.map(dateKey => {
+        // 모바일/단일 날짜 집중 모드 처리
+        let datesToRender = sortedDates;
+        let navHeaderHtml = '';
+
+        if (this._selectedDate && dateMap[this._selectedDate]) {
+            datesToRender = [this._selectedDate];
+            const currIdx = sortedDates.indexOf(this._selectedDate);
+            const prevDate = currIdx < sortedDates.length - 1 ? sortedDates[currIdx + 1] : null;
+            const nextDate = currIdx > 0 ? sortedDates[currIdx - 1] : null;
+
+            navHeaderHtml = `
+                <div style="background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(251,191,36,0.1));border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <button class="btn btn-primary btn-sm" onclick="GameDuesPage.clearSelectedDate()" style="font-weight:700;padding:4px 12px;font-size:0.82rem;">
+                            ⬅️ 전체 모임 목록 보기
+                        </button>
+                        <span style="font-weight:700;color:#fbbf24;font-size:0.92rem;">🗓️ ${Utils.formatDateKR(this._selectedDate)} 모임 상세</span>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        ${prevDate ? `<button class="btn btn-ghost btn-sm" onclick="GameDuesPage.selectDate('${prevDate}')" style="font-size:0.75rem;padding:3px 8px;">◀ 이전 (${Utils.formatDateKR(prevDate)})</button>` : ''}
+                        ${nextDate ? `<button class="btn btn-ghost btn-sm" onclick="GameDuesPage.selectDate('${nextDate}')" style="font-size:0.75rem;padding:3px 8px;">다음 (${Utils.formatDateKR(nextDate)}) ▶</button>` : ''}
+                    </div>
+                </div>
+            `;
+        } else if (sortedDates.length > 1) {
+            // 전체 목록 모드일 때 모바일 빠른 날짜 점프 바
+            navHeaderHtml = `
+                <div style="margin-bottom:12px;display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;">
+                    <span style="font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;white-space:nowrap;margin-right:2px;">⚡ 날짜별 바로보기:</span>
+                    ${sortedDates.map(d => `
+                        <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.selectDate('${d}')" style="padding:2px 8px;font-size:0.75rem;white-space:nowrap;border-color:rgba(255,255,255,0.12);">
+                            📅 ${Utils.formatDateKR(d)}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        container.innerHTML = navHeaderHtml + datesToRender.map(dateKey => {
             const grp = dateMap[dateKey];
             const dateTitle = Utils.formatDateKR(grp.date);
             const totalInc = grp.incomes.reduce((s, r) => s + Utils.parseAmount(r.amount), 0);
@@ -649,6 +695,7 @@ const GameDuesPage = {
                             <span style="font-size:0.95rem;font-weight:700;color:#fff;">${dateTitle} 모임 정산</span>
                             <span style="font-size:0.75rem;color:var(--text-muted);margin-left:4px;">${grp.date}</span>
                         </div>
+                        ${!this._selectedDate ? `<button class="btn btn-ghost btn-sm" onclick="GameDuesPage.selectDate('${grp.date}')" style="padding:1px 6px;font-size:0.7rem;margin-left:6px;border-color:rgba(251,191,36,0.4);color:#fbbf24;" title="이 날짜 모임만 집중해서 보기">🔍 이 날짜만 보기</button>` : ''}
                     </div>
 
                     <!-- 3대 요약 뱃지 (슬림) -->
@@ -1010,9 +1057,9 @@ const GameDuesPage = {
                     <input type="date" id="inc-date" value="${defaultDate || Utils.today()}">
                 </div>
                 <div class="form-group">
-                    <label>입금자 이름 (영문)</label>
-                    <input type="text" id="inc-name" placeholder="예: PARK, KIM, LEE" list="dl-member-names"
-                           style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+                    <label>입금자 이름 (영문/한글)</label>
+                    <input type="text" id="inc-name" placeholder="예: KIM SANGKOOK, PARK, LEE" list="dl-member-names"
+                           style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase(); GameDuesPage._handleIncomeNameChange(this.value)">
                 </div>
                 <div class="form-group full-width">
                     <label>입금액 (VND)</label>
@@ -1022,6 +1069,17 @@ const GameDuesPage = {
             <div class="form-group mt-md">
                 <label>메모 (선택)</label>
                 <input type="text" id="inc-memo" placeholder="예: 8월 모임 회비">
+            </div>
+
+            <!-- 김상국 본인 회비 가계부 지출 연동 체크박스 -->
+            <div class="form-group mt-md" id="wrap-sync-personal" style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:8px;padding:10px 12px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#fbbf24;font-weight:700;font-size:0.85rem;margin:0;">
+                    <input type="checkbox" id="inc-sync-personal" style="width:17px;height:17px;cursor:pointer;">
+                    <span>💰 내 개인 가계부에도 지출로 동시 등록 (김상국 회비 납부)</span>
+                </label>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;padding-left:25px;">
+                    체크 시 개인 가계부에 [지출 - 취미/골프회비]로 즉시 자동 기록되어 개인 지갑 지출이 정상 반영됩니다.
+                </div>
             </div>
         `, `
             <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
@@ -1035,6 +1093,7 @@ const GameDuesPage = {
             const name   = document.getElementById('inc-name')?.value?.trim().toUpperCase();
             const amount = Utils.parseAmount(document.getElementById('inc-amount')?.value);
             const memo   = document.getElementById('inc-memo')?.value?.trim() || '';
+            const syncToPersonal = document.getElementById('inc-sync-personal')?.checked;
 
             if (!date)   { Utils.toast('날짜를 입력하세요', 'error'); return; }
             if (!name)   { Utils.toast('입금자 이름을 입력하세요', 'error'); return; }
@@ -1043,11 +1102,44 @@ const GameDuesPage = {
             const btn = document.getElementById('btn-save-income');
             if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
 
+            // 1. 게임회비 입금 등록
             await this._addIncome({ tx_date: date, member_name: name, amount, memo });
+
+            // 2. 가계부 지출 동시 등록 선택 시
+            if (syncToPersonal) {
+                try {
+                    const categories = await Store.getCategories();
+                    const cat = categories.find(c => /취미|레저|문화|골프/i.test(c.name)) || categories.find(c => /기타/i.test(c.name)) || categories[0];
+                    const dateKR = Utils.formatDateKR(date);
+                    const memoStr = `[게임회비] ${dateKR} 모임 본인 회비 납부 (${name})${memo ? ' - ' + memo : ''}`;
+
+                    await Store.addTransaction({
+                        tx_date: date,
+                        type: 'expense',
+                        amount: amount,
+                        category_id: cat ? cat.id : null,
+                        payment_method: 'account',
+                        memo: memoStr
+                    });
+                    Utils.toast(`✅ ${name} 입금 등록 & 개인 가계부 지출(${Utils.formatVND(amount)}) 자동 연동 완료!`, 'success');
+                } catch(e) {
+                    console.error('가계부 지출 연동 오류:', e);
+                }
+            } else {
+                Utils.toast(`${name} 입금 등록 완료!`, 'success');
+            }
+
             Modal.close();
             this._refreshAll();
-            Utils.toast(`${name} 입금 등록 완료!`, 'success');
         });
+    },
+
+    _handleIncomeNameChange(name) {
+        const isMe = /(?:김상국|상국|KIM\s*SANG|SANG\s*KOOK|본인|나)/i.test(name || '');
+        const cb = document.getElementById('inc-sync-personal');
+        if (cb) {
+            cb.checked = isMe;
+        }
     },
 
     openExpenseModal(defaultDate = null, defaultTitle = '') {
