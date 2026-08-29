@@ -39,8 +39,10 @@ const GameDuesPage = {
     },
 
     async _deleteIncome(id) {
+        // 1. 로컬 리스트에서 즉시 제거 (UI 즉각 반영)
+        this._incomeList = this._incomeList.filter(r => String(r.id) !== String(id));
+        // 2. Store 비동기 삭제 (Supabase + localStorage 동기화)
         await Store.deleteGameDuesIncome(id);
-        this._incomeList = await Store.getGameDuesIncome();
     },
 
     async _addExpense(item) {
@@ -56,8 +58,10 @@ const GameDuesPage = {
     },
 
     async _deleteExpense(id) {
+        // 1. 로컬 리스트에서 즉시 제거 (UI 즉각 반영)
+        this._expenseList = this._expenseList.filter(r => String(r.id) !== String(id));
+        // 2. Store 비동기 삭제 (Supabase + localStorage 동기화)
         await Store.deleteGameDuesExpense(id);
-        this._expenseList = await Store.getGameDuesExpense();
     },
 
     async _loadSettings() {
