@@ -808,13 +808,15 @@ const Store = {
             }
         } catch(e) {}
 
-        // 8월 26일 기본 입금 내역 보장
+        // 8월 26일 기본 입금 내역 보장 (사용자가 삭제한 항목은 제외)
+        const deletedIds = this._getLocal('mymoney_gamedues_deleted_ids', []);
         const default826Incomes = [
             { id: 'inc_826_kim', tx_date: '2026-08-26', member_name: 'KIM SANGKOOK', amount: 930000, memo: '08월 26일 (수) 본인 회비', created_at: '2026-08-26T13:20:00Z' },
             { id: 'inc_826_park', tx_date: '2026-08-26', member_name: 'PARK', amount: 930000, memo: '08월 26일 모임 회비', created_at: '2026-08-26T13:25:00Z' },
             { id: 'inc_826_lee', tx_date: '2026-08-26', member_name: 'LEE', amount: 930000, memo: '08월 26일 모임 회비', created_at: '2026-08-26T13:30:00Z' }
         ];
         default826Incomes.forEach(defInc => {
+            if (deletedIds.includes(String(defInc.id))) return; // 삭제된 항목은 재삽입 안함
             const exists = dbList.some(r => Utils.formatDate(r.tx_date) === defInc.tx_date && (r.member_name || '').toUpperCase().includes(defInc.member_name.split(' ')[0]));
             if (!exists) {
                 dbList.push(defInc);
@@ -905,11 +907,13 @@ const Store = {
             }
         } catch(e) {}
 
-        // 8월 26일 스크린 지출(3,100,000) 보장
+        // 8월 26일 스크린 지출(3,100,000) 보장 (사용자가 삭제한 항목은 제외)
+        const deletedIdsExp = this._getLocal('mymoney_gamedues_deleted_ids', []);
         const default826Expenses = [
             { id: 'exp_826_screen', tx_date: '2026-08-26', title: '스크린 골프비', amount: 3100000, memo: '08월 26일 스크린 모임 게임비', created_at: '2026-08-26T08:20:22Z' }
         ];
         default826Expenses.forEach(defExp => {
+            if (deletedIdsExp.includes(String(defExp.id))) return; // 삭제된 항목은 재삽입 안함
             const exists = dbList.some(r => Utils.formatDate(r.tx_date) === defExp.tx_date && Utils.parseAmount(r.amount) === defExp.amount);
             if (!exists) {
                 dbList.push(defExp);
@@ -1052,6 +1056,14 @@ const Store = {
         let list = await this.getGameDuesIncome();
         list = list.filter(r => String(r.id) !== String(id));
         this._setLocal('mymoney_gamedues_income', list);
+
+        // 삭제된 ID 블랙리스트에 추가 (하드코딩 기본값 재삽입 방지)
+        const deletedIds = this._getLocal('mymoney_gamedues_deleted_ids', []);
+        if (!deletedIds.includes(String(id))) {
+            deletedIds.push(String(id));
+            this._setLocal('mymoney_gamedues_deleted_ids', deletedIds);
+        }
+
         try {
             await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_income', value: list });
         } catch(e) {}
@@ -1064,6 +1076,14 @@ const Store = {
         let list = await this.getGameDuesExpense();
         list = list.filter(r => String(r.id) !== String(id));
         this._setLocal('mymoney_gamedues_expense', list);
+
+        // 삭제된 ID 블랙리스트에 추가 (하드코딩 기본값 재삽입 방지)
+        const deletedIds = this._getLocal('mymoney_gamedues_deleted_ids', []);
+        if (!deletedIds.includes(String(id))) {
+            deletedIds.push(String(id));
+            this._setLocal('mymoney_gamedues_deleted_ids', deletedIds);
+        }
+
         try {
             await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_expense', value: list });
         } catch(e) {}
