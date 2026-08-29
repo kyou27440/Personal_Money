@@ -573,7 +573,8 @@ const Store = {
         const cats = await this.getCategories();
         const cat = cats.find(c => String(c.id) === String(cleanTx.category_id)) || (cleanTx.type === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
 
-        window.AppVersion?.updateSyncStatus();
+        const actionLabel = cleanTx.type === 'income' ? '💵 가계부 수입 등록' : '💸 가계부 지출 등록';
+        this._logRevision(actionLabel, `${Utils.formatVND(cleanTx.amount)} / ${cleanTx.memo || ''}`);
 
         if (inserted) {
             // 성공 시 DB 생성 항목 즉시 반환 (LocalStorage에 재주입하지 않음)
@@ -618,7 +619,7 @@ const Store = {
             await supabase.from('personal_transactions').update(dbUpdates).eq('id', id);
         } catch(e) {}
 
-        window.AppVersion?.updateSyncStatus();
+        this._logRevision('✏️ 가계부 내역 수정', `ID:${id} / ${updates.memo || ''}`);
         return true;
     },
 
@@ -636,7 +637,7 @@ const Store = {
         }
 
         this._clearLocalDrafts();
-        window.AppVersion?.updateSyncStatus();
+        this._logRevision('🗑️ 가계부 내역 삭제', `${ids.length}건 삭제`);
         return true;
     },
 
@@ -1020,7 +1021,7 @@ const Store = {
             await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_income', value: list });
         } catch(e) {}
 
-        window.AppVersion?.updateSyncStatus();
+        this._logRevision('💰 회비 입금 등록', `${(item.member_name || '').toUpperCase()} / ${Utils.formatVND(payload.amount)}`);
         return payload;
     },
 
@@ -1043,7 +1044,7 @@ const Store = {
             await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_expense', value: list });
         } catch(e) {}
 
-        window.AppVersion?.updateSyncStatus();
+        this._logRevision('💸 회비 지출 등록', `${payload.title} / ${Utils.formatVND(payload.amount)}`);
         return payload;
     },
 
@@ -1063,7 +1064,7 @@ const Store = {
                 await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_income', value: list });
             } catch(e) {}
         }
-        window.AppVersion?.updateSyncStatus();
+        this._logRevision('✏️ 회비 입금 수정', `ID:${id}`);
         return true;
     },
 
@@ -1083,7 +1084,7 @@ const Store = {
                 await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_expense', value: list });
             } catch(e) {}
         }
-        window.AppVersion?.updateSyncStatus();
+        this._logRevision('✏️ 회비 지출 수정', `ID:${id}`);
         return true;
     },
 
@@ -1103,7 +1104,7 @@ const Store = {
         try {
             await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_income', value: list });
         } catch(e) {}
-        window.AppVersion?.updateSyncStatus();
+        this._logRevision('🗑️ 회비 입금 삭제', `ID:${id}`);
         return true;
     },
 
@@ -1123,7 +1124,7 @@ const Store = {
         try {
             await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_expense', value: list });
         } catch(e) {}
-        window.AppVersion?.updateSyncStatus();
+        this._logRevision('🗑️ 회비 지출 삭제', `ID:${id}`);
         return true;
     },
 
