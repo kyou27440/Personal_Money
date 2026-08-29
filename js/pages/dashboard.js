@@ -24,10 +24,10 @@ const DashboardPage = {
             </div>
             <div style="text-align:right;flex-shrink:0;">
                 <span class="badge" style="background:rgba(52,211,153,0.15);color:#34d399;font-size:0.85rem;padding:4px 10px;font-weight:700;border:1px solid rgba(52,211,153,0.3);">
-                    ${typeof AppVersion !== 'undefined' ? AppVersion.version : 'v5.6.0'} (${typeof AppVersion !== 'undefined' ? AppVersion.buildDesc : '게임회비 8/26 복원 & 클라우드 동기화'})
+                    ${typeof AppVersion !== 'undefined' ? AppVersion.version : 'v5.7.0'} (${typeof AppVersion !== 'undefined' ? (AppVersion.buildDesc || '').slice(0, 22) + ((AppVersion.buildDesc || '').length > 22 ? '…' : '') : 'OCR 블록 파서 개편'})
                 </span>
                 <div style="font-size:0.8rem;color:#38bdf8;font-weight:700;margin-top:4px;">
-                    🕒 ${typeof AppVersion !== 'undefined' ? AppVersion.buildDate : '2026-08-29 07:48'} 업데이트 • <span style="color:#a7f3d0;">🟢 최신 반영됨</span>
+                    🕒 ${typeof AppVersion !== 'undefined' ? AppVersion.buildDate : '2026-08-29'} 업데이트 • <span style="color:#a7f3d0;">🟢 최신 반영됨</span>
                 </div>
             </div>
         </div>
