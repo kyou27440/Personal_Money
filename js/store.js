@@ -894,9 +894,6 @@ const Store = {
         return filtered;
     },
 
-        return filtered;
-    },
-
     async addGameDuesIncome(item) {
         this._invalidateGameDuesCache(); // 캐시 무효화
         const payload = {
