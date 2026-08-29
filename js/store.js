@@ -806,7 +806,7 @@ const Store = {
         return { vnd, krw };
     },
 
-    // ─── 게임회비 관리 (Supabase app_settings + club_games/club_dues 통합 실시간 동기화) ───
+    // ─── 게임회비 관리 (순수 사용자 입력 데이터 기반 - Supabase app_settings 실시간 동기화) ───
 
     async getGameDuesIncome(filters = {}) {
         // 1분 인메모리 캐시 (필터 없는 전체 조회 시)
@@ -816,83 +816,29 @@ const Store = {
             return [...this._gameDuesIncomeCache];
         }
 
-        let dbList = [];
+        let list = [];
         try {
             const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'mymoney_gamedues_income').single();
-            if (!error && data && Array.isArray(data.value)) {
-                dbList = data.value;
+            if (!error && data && data.value) {
+                list = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+                if (!Array.isArray(list)) list = [];
             }
         } catch(e) {}
 
-        // Supabase 기존 club_dues 테이블 데이터도 함께 조회하여 병합
-        try {
-            const { data: clubDuesData } = await supabase.from('club_dues').select('*, club_members(name)').order('dues_date', { ascending: false });
-            if (clubDuesData && Array.isArray(clubDuesData)) {
-                clubDuesData.forEach(cd => {
-                    const cdName = (cd.club_members?.name || '회원').trim().toUpperCase();
-                    const exists = dbList.some(r => Utils.formatDate(r.tx_date) === Utils.formatDate(cd.dues_date) && Utils.parseAmount(r.amount) === Utils.parseAmount(cd.amount) && (r.member_name || '').toUpperCase() === cdName);
-                    if (!exists) {
-                        dbList.push({
-                            id: 'club_due_' + cd.id,
-                            tx_date: Utils.formatDate(cd.dues_date),
-                            member_name: cdName,
-                            amount: Utils.parseAmount(cd.amount),
-                            memo: cd.memo || '모임 회비 입금',
-                            created_at: cd.created_at || new Date().toISOString()
-                        });
-                    }
-                });
-            }
-        } catch(e) {}
+        this._setLocal('mymoney_gamedues_income', list);
 
-        // 8월 26일 기본 입금 내역 보장 (사용자가 삭제한 항목은 제외)
-        const deletedIds = this._getLocal('mymoney_gamedues_deleted_ids', []);
-        const default826Incomes = [
-            { id: 'inc_826_kim', tx_date: '2026-08-26', member_name: 'KIM SANGKOOK', amount: 930000, memo: '08월 26일 (수) 본인 회비', created_at: '2026-08-26T13:20:00Z' },
-            { id: 'inc_826_park', tx_date: '2026-08-26', member_name: 'PARK', amount: 930000, memo: '08월 26일 모임 회비', created_at: '2026-08-26T13:25:00Z' },
-            { id: 'inc_826_lee', tx_date: '2026-08-26', member_name: 'LEE', amount: 930000, memo: '08월 26일 모임 회비', created_at: '2026-08-26T13:30:00Z' }
-        ];
-        default826Incomes.forEach(defInc => {
-            if (deletedIds.includes(String(defInc.id))) return; // 삭제된 항목은 재삽입 안함
-            const exists = dbList.some(r => Utils.formatDate(r.tx_date) === defInc.tx_date && (r.member_name || '').toUpperCase().includes(defInc.member_name.split(' ')[0]));
-            if (!exists) {
-                dbList.push(defInc);
-            }
-        });
-
-        const localList = this._getLocal('mymoney_gamedues_income', []);
-        const dbKeys = new Set(dbList.map(r => `${Utils.formatDate(r.tx_date)}_${Utils.parseAmount(r.amount)}_${String(r.member_name || '').trim().toUpperCase()}`));
-        const combined = [...dbList];
-
-        let hasNewLocal = false;
-        localList.forEach(r => {
-            const key = `${Utils.formatDate(r.tx_date)}_${Utils.parseAmount(r.amount)}_${String(r.member_name || '').trim().toUpperCase()}`;
-            if (!dbKeys.has(key)) {
-                combined.push(r);
-                dbKeys.add(key);
-                hasNewLocal = true;
-            }
-        });
-
-        this._setLocal('mymoney_gamedues_income', combined);
-        if (hasNewLocal || dbList.length > 0) {
-            try {
-                await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_income', value: combined });
-            } catch(e) {}
-        }
-
-        // 캐시 저장 (필터 없는 경우)
+        // 캐시 저장
         if (useCache) {
-            combined.sort((a, b) => {
+            list.sort((a, b) => {
                 const dComp = String(b.tx_date).localeCompare(String(a.tx_date));
                 if (dComp !== 0) return dComp;
                 return String(b.created_at || '').localeCompare(String(a.created_at || ''));
             });
-            this._gameDuesIncomeCache = combined;
+            this._gameDuesIncomeCache = list;
             this._gameDuesIncomeCacheTime = Date.now();
         }
 
-        let filtered = combined;
+        let filtered = [...list];
         if (filters.startDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) >= Utils.formatDate(filters.startDate));
         if (filters.endDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) <= Utils.formatDate(filters.endDate));
 
@@ -913,83 +859,29 @@ const Store = {
             return [...this._gameDuesExpenseCache];
         }
 
-        let dbList = [];
+        let list = [];
         try {
             const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'mymoney_gamedues_expense').single();
-            if (!error && data && Array.isArray(data.value)) {
-                dbList = data.value;
+            if (!error && data && data.value) {
+                list = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+                if (!Array.isArray(list)) list = [];
             }
         } catch(e) {}
 
-        // Supabase 기존 club_games 테이블 데이터(8월 26일 스크린비 3,100,000 등)도 자동 병합
-        try {
-            const { data: clubGamesData } = await supabase.from('club_games').select('*').order('game_date', { ascending: false });
-            if (clubGamesData && Array.isArray(clubGamesData)) {
-                clubGamesData.forEach(cg => {
-                    const cgDate = Utils.formatDate(cg.game_date);
-                    const cgCost = Utils.parseAmount(cg.total_cost);
-                    const cgTitle = cg.location ? `${cg.location} 게임비` : '스크린 모임 게임비';
-                    const exists = dbList.some(r => Utils.formatDate(r.tx_date) === cgDate && (Utils.parseAmount(r.amount) === cgCost || cgCost === 0));
-                    if (!exists && cgCost > 0) {
-                        dbList.push({
-                            id: 'club_game_' + cg.id,
-                            tx_date: cgDate,
-                            title: cgTitle,
-                            amount: cgCost,
-                            memo: cg.memo || `${cgDate} 모임 지출`,
-                            created_at: cg.created_at || new Date().toISOString()
-                        });
-                    }
-                });
-            }
-        } catch(e) {}
+        this._setLocal('mymoney_gamedues_expense', list);
 
-        // 8월 26일 스크린 지출(3,100,000) 보장 (사용자가 삭제한 항목은 제외)
-        const deletedIdsExp = this._getLocal('mymoney_gamedues_deleted_ids', []);
-        const default826Expenses = [
-            { id: 'exp_826_screen', tx_date: '2026-08-26', title: '스크린 골프비', amount: 3100000, memo: '08월 26일 스크린 모임 게임비', created_at: '2026-08-26T08:20:22Z' }
-        ];
-        default826Expenses.forEach(defExp => {
-            if (deletedIdsExp.includes(String(defExp.id))) return; // 삭제된 항목은 재삽입 안함
-            const exists = dbList.some(r => Utils.formatDate(r.tx_date) === defExp.tx_date && Utils.parseAmount(r.amount) === defExp.amount);
-            if (!exists) {
-                dbList.push(defExp);
-            }
-        });
-
-        const localList = this._getLocal('mymoney_gamedues_expense', []);
-        const dbKeys = new Set(dbList.map(r => `${Utils.formatDate(r.tx_date)}_${Utils.parseAmount(r.amount)}_${String(r.title || '').trim()}`));
-        const combined = [...dbList];
-
-        let hasNewLocal = false;
-        localList.forEach(r => {
-            const key = `${Utils.formatDate(r.tx_date)}_${Utils.parseAmount(r.amount)}_${String(r.title || '').trim()}`;
-            if (!dbKeys.has(key)) {
-                combined.push(r);
-                dbKeys.add(key);
-                hasNewLocal = true;
-            }
-        });
-
-        this._setLocal('mymoney_gamedues_expense', combined);
-        if (hasNewLocal || dbList.length > 0) {
-            try {
-                await supabase.from('app_settings').upsert({ key: 'mymoney_gamedues_expense', value: combined });
-            } catch(e) {}
-        }
-
-        // 캐시 저장 (필터 없는 경우)
+        // 캐시 저장
         if (useCacheE) {
-            combined.sort((a, b) => {
+            list.sort((a, b) => {
                 const dComp = String(b.tx_date).localeCompare(String(a.tx_date));
                 if (dComp !== 0) return dComp;
                 return String(b.created_at || '').localeCompare(String(a.created_at || ''));
             });
-            this._gameDuesExpenseCache = combined;
+            this._gameDuesExpenseCache = list;
             this._gameDuesExpenseCacheTime = Date.now();
         }
 
-        let filtered = combined;
+        let filtered = [...list];
         if (filters.startDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) >= Utils.formatDate(filters.startDate));
         if (filters.endDate) filtered = filtered.filter(r => Utils.formatDate(r.tx_date) <= Utils.formatDate(filters.endDate));
 
@@ -998,6 +890,9 @@ const Store = {
             if (dComp !== 0) return dComp;
             return String(b.created_at || '').localeCompare(String(a.created_at || ''));
         });
+
+        return filtered;
+    },
 
         return filtered;
     },
