@@ -397,13 +397,15 @@ const Store = {
                 const key = `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).trim().toLowerCase()}_${String(t.memo || '').trim()}`;
                 if (!txMap[String(t.id)]) {
                     const cObj = t.personal_categories || catMap[String(t.category_id)] || (String(t.type).trim().toLowerCase() === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
+                    const isGameDues = /(?:\[🎮\s*게임회비|\[게임회비|\[회비이전\])/i.test(t.memo || '');
                     txMap[String(t.id)] = {
                         ...t,
                         tx_date: Utils.formatDate(t.tx_date),
                         type: String(t.type || 'expense').trim().toLowerCase(),
                         amount: Utils.parseAmount(t.amount),
                         payment_method: t.payment_method || (/(?:cash|현금)/i.test(t.memo || '') ? 'cash' : 'transfer'),
-                        personal_categories: cObj
+                        personal_categories: cObj,
+                        is_game_dues: isGameDues
                     };
                 }
             }
@@ -421,6 +423,7 @@ const Store = {
                 const idKey = t.id ? String(t.id) : ('local_' + key);
                 if (!txMap[idKey]) {
                     const cObj = t.personal_categories || catMap[String(t.category_id)] || (tType === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
+                    const isGameDues = /(?:\[🎮\s*게임회비|\[게임회비|\[회비이전\])/i.test(memoStr);
                     txMap[idKey] = {
                         ...t,
                         id: idKey,
@@ -428,7 +431,8 @@ const Store = {
                         type: tType,
                         amount: amt,
                         payment_method: t.payment_method || (/(?:cash|현금)/i.test(memoStr) ? 'cash' : 'transfer'),
-                        personal_categories: cObj
+                        personal_categories: cObj,
+                        is_game_dues: isGameDues
                     };
                 }
             }
@@ -592,6 +596,8 @@ const Store = {
         let incomeCash = 0, incomeTransfer = 0;
         let expenseCash = 0, expenseTransfer = 0;
         txList.forEach(t => {
+            if (t.is_game_dues) return; // 게임회비 이전 항목은 통계에서 제외 (미반영)
+
             const amt = Utils.parseAmount(t.amount);
             const tType = String(t.type).trim().toLowerCase();
             const pm = t.payment_method === 'cash' ? 'cash' : 'transfer';
@@ -620,6 +626,8 @@ const Store = {
         const txList = await this.getTransactions({});
         let balance = 0;
         txList.forEach(t => {
+            if (t.is_game_dues) return; // 게임회비 이전 항목은 제외
+
             const amt = Utils.parseAmount(t.amount);
             const tType = String(t.type).trim().toLowerCase();
             if (tType === 'income') balance += amt;
@@ -636,6 +644,8 @@ const Store = {
             total: { income: 0, expense: 0, balance: 0 }
         };
         txList.forEach(t => {
+            if (t.is_game_dues) return; // 게임회비 이전 항목은 제외
+
             const amt = Utils.parseAmount(t.amount);
             const tType = String(t.type).trim().toLowerCase();
             const pm = t.payment_method === 'cash' ? 'cash' : 'transfer';
@@ -913,7 +923,7 @@ const Store = {
         return true;
     },
 
-    /** 개인 가계부 내역을 게임회비 관리로 이전 (가계부에서는 완전 분리/삭제) */
+    /** 개인 가계부 내역을 게임회비 관리로 이전 (가계부에서는 삭제하지 않고 취소선/미반영 마킹 보존) */
     async convertPersonalTxToGameDues(tx) {
         if (!tx) return false;
 
@@ -939,34 +949,47 @@ const Store = {
             });
         }
 
-        // 개인 가계부에서 해당 거래 삭제 (자산/잔액에서 즉시 제외)
+        // 개인 가계부에서 거래를 삭제하지 않고, 메모에 마커를 붙여 미반영/취소선 상태로 보존 (중복 생성 방지)
         if (tx.id) {
-            await this.deleteTransaction(tx.id);
+            const cleanMemo = rawMemo.replace(/\[🎮\s*게임회비[^\]]*\]\s*/g, '').trim();
+            const newMemo = `[🎮 게임회비 이전] ${cleanMemo}`.trim();
+            await this.updateTransaction(tx.id, { memo: newMemo });
         }
 
         return true;
     },
 
-    /** 게임회비 항목을 다시 개인 가계부로 되돌리기 (게임회비에서는 삭제) */
+    /** 게임회비 항목을 다시 개인 가계부로 되돌리기 (게임회비에서는 삭제, 가계부에서는 마커 제거하여 복원) */
     async convertGameDuesToPersonalTx(item, isIncome = true) {
         if (!item) return false;
 
         const txDate = Utils.formatDate(item.tx_date || Utils.today());
         const amt = Utils.parseAmount(item.amount);
-        const memo = isIncome
-            ? (item.memo ? `${item.member_name} / ${item.memo}` : `${item.member_name} 회비환원`)
-            : (item.memo || item.title || '게임회비 지출환원');
 
-        // 가계부에 등록
-        const added = await this.addTransaction({
-            tx_date: txDate,
-            created_at: item.created_at || new Date().toISOString(),
-            type: isIncome ? 'income' : 'expense',
-            category_id: isIncome ? 10 : 1, // 수입: 급여/수입(10), 지출: 식비(1)
-            payment_method: 'transfer',
-            amount: amt,
-            memo: memo
-        });
+        // 기존 가계부에서 이전된 내역이 있는지 검색하여 복원
+        const allTx = await this.getTransactions({ startDate: txDate, endDate: txDate });
+        const matched = allTx.find(t => t.is_game_dues && Utils.parseAmount(t.amount) === amt);
+
+        if (matched) {
+            // 기존 가계부 거래의 마커를 제거하여 정상 활성화
+            const cleanMemo = (matched.memo || '').replace(/\[🎮\s*게임회비[^\]]*\]\s*/g, '').trim();
+            await this.updateTransaction(matched.id, { memo: cleanMemo || (isIncome ? '수입' : '지출') });
+        } else {
+            // 없는 경우 신규 등록
+            const memo = isIncome
+                ? (item.memo ? `${item.member_name} / ${item.memo}` : `${item.member_name} 회비환원`)
+                : (item.memo || item.title || '게임회비 지출환원');
+
+            await this.addTransaction({
+                tx_date: txDate,
+                created_at: item.created_at || new Date().toISOString(),
+                type: isIncome ? 'income' : 'expense',
+                category_id: isIncome ? 10 : 1,
+                payment_method: 'transfer',
+                amount: amt,
+                memo: memo
+            });
+        }
 
         // 게임회비 DB에서 삭제
         if (item.id) {
@@ -977,7 +1000,7 @@ const Store = {
             }
         }
 
-        return added;
+        return true;
     },
 
     // ─── 설정 ───
