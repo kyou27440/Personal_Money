@@ -487,184 +487,146 @@ const ImportPage = {
         const rows = [];
         if (!text || !text.trim()) return rows;
 
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        // 1. 기간 범위 라인 및 상단 UI 헤더 필터링
+        const isDateRangeHeader = (line) => {
+            return /\d{1,2}[.\-\/]\d{1,2}[.\-\/]\d{4}\s*[-~]\s*\d{1,2}[.\-\/]\d{1,2}[.\-\/]\d{4}/.test(line) ||
+                   /(?:1개월|3개월|6개월|조회기간|계좌\s*정보|거래이력|거래내역)/.test(line);
+        };
 
-        // 키워드 정규식
-        const incomeKw = /(?:\+|입금|수입|적립|환급|이자|급여|월급|매출|받음|충전|예금|타행입금|CD입금|nhận|thu|nạp|chuyển đến|cộng|deposit|credit|income|received)/i;
-        const expenseKw = /(?:-|−|출금|지출|결제|이체|송금|납부|사용|인출|차감|승인|체크|타행이체|CD출금|자동이체|rút|chi|chuyển đi|trừ|thanh toán|payment|withdraw|debit|expense|spent)/i;
-        const balanceKw = /(?:잔액|잔고|통장잔액|차기잔액|số dư|so du|balance|bal:|sd:)/i;
+        // 2. 단일 거래 시작 일시 매칭 (Anchor)
+        const matchTxDateTime = (line) => {
+            if (isDateRangeHeader(line)) return null;
 
-        // 날짜 파서 헬퍼
-        const parseDateAndTimeString = (str) => {
-            let date = null;
-            let time = null;
+            // DD/MM/YYYY HH:mm:ss or HH:mm
+            const dmyMatch = line.match(/(?:^|[^\d])(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+            if (dmyMatch) {
+                const date = `${dmyMatch[3]}-${String(dmyMatch[2]).padStart(2, '0')}-${String(dmyMatch[1]).padStart(2, '0')}`;
+                const time = dmyMatch[4] ? `${String(dmyMatch[4]).padStart(2, '0')}:${String(dmyMatch[5]).padStart(2, '0')}:${dmyMatch[6] ? String(dmyMatch[6]).padStart(2, '0') : '00'}` : '12:00:00';
+                return { date, time };
+            }
 
-            // 1. 한국식/국제식 YYYY.MM.DD or YYYY-MM-DD or YYYY/MM/DD or YYYY년 MM월 DD일
-            const ymdMatch = str.match(/(\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/);
-            // 2. 2자리 연도 26.08.28 or 26/08/28
-            const y2mdMatch = str.match(/(?:^|[^\d])(\d{2})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
-            // 3. 베트남/유럽식 DD/MM/YYYY
-            const dmyMatch = str.match(/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/);
-            // 4. 단축 MM.DD or MM/DD or MM월 DD일
-            const mdMatch = str.match(/(?:^|[^\d])(\d{1,2})[.\-\/월]\s*(\d{1,2})(?:일)?/);
-
+            // YYYY.MM.DD HH:mm:ss or HH:mm
+            const ymdMatch = line.match(/(?:^|[^\d])(\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})(?:일)?(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
             if (ymdMatch) {
-                date = `${ymdMatch[1]}-${String(ymdMatch[2]).padStart(2, '0')}-${String(ymdMatch[3]).padStart(2, '0')}`;
-            } else if (dmyMatch) {
-                date = `${dmyMatch[3]}-${String(dmyMatch[2]).padStart(2, '0')}-${String(dmyMatch[1]).padStart(2, '0')}`;
-            } else if (y2mdMatch) {
-                date = `20${y2mdMatch[1]}-${String(y2mdMatch[2]).padStart(2, '0')}-${String(y2mdMatch[3]).padStart(2, '0')}`;
-            } else if (mdMatch) {
+                const date = `${ymdMatch[1]}-${String(ymdMatch[2]).padStart(2, '0')}-${String(ymdMatch[3]).padStart(2, '0')}`;
+                const time = ymdMatch[4] ? `${String(ymdMatch[4]).padStart(2, '0')}:${String(ymdMatch[5]).padStart(2, '0')}:${ymdMatch[6] ? String(ymdMatch[6]).padStart(2, '0') : '00'}` : '12:00:00';
+                return { date, time };
+            }
+
+            // 단축 MM.DD or MM/DD
+            const mdMatch = line.match(/(?:^|[^\d])(\d{1,2})[.\-\/월]\s*(\d{1,2})(?:일)?(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+            if (mdMatch && !line.includes('개월')) {
                 const now = new Date();
-                date = `${now.getFullYear()}-${String(mdMatch[1]).padStart(2, '0')}-${String(mdMatch[2]).padStart(2, '0')}`;
+                const date = `${now.getFullYear()}-${String(mdMatch[1]).padStart(2, '0')}-${String(mdMatch[2]).padStart(2, '0')}`;
+                const time = mdMatch[3] ? `${String(mdMatch[3]).padStart(2, '0')}:${String(mdMatch[4]).padStart(2, '0')}:00` : '12:00:00';
+                return { date, time };
             }
 
-            // 시간 파싱 (HH:mm:ss or HH:mm or 오전/오후 HH:mm)
-            const timeMatch = str.match(/(?:(?:오전|오후|AM|PM)\s*)?(\d{1,2}):(\d{2})(?::(\d{2}))?/i);
-            if (timeMatch) {
-                let hh = parseInt(timeMatch[1], 10);
-                const mm = String(timeMatch[2]).padStart(2, '0');
-                const ss = timeMatch[3] ? String(timeMatch[3]).padStart(2, '0') : '00';
-                if (/오후|PM/i.test(str) && hh < 12) hh += 12;
-                if (/오전|AM/i.test(str) && hh === 12) hh = 0;
-                time = `${String(hh).padStart(2, '0')}:${mm}:${ss}`;
-            }
-
-            return { date, time };
+            return null;
         };
 
-        // 금액 파서 헬퍼 (잔액 제외 및 거래금액 정밀 추출)
-        const extractAmounts = (lineStr) => {
-            // 잔액 라벨 뒤에 오는 금액은 분리
-            let cleanForAmount = lineStr;
-            const balIdx = lineStr.search(balanceKw);
-            if (balIdx !== -1) {
-                cleanForAmount = lineStr.slice(0, balIdx);
-            }
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        const blocks = [];
+        let currentBlock = null;
 
-            // 베트남 점 표기 (100.000, 2.500.000) 및 쉼표 표기 (100,000) 모두 탐색
-            const matches = [...cleanForAmount.matchAll(/([+-−]?\s*\d{1,3}(?:[.,]\d{3})+(?:\s*(?:원|VND|đ|VND))?|[+-−]?\s*\d{4,}(?:\s*(?:원|VND|đ|VND))?)/gi)];
-            const results = [];
-
-            for (const m of matches) {
-                const fullStr = m[0];
-                const rawNum = Utils.parseAmount(fullStr);
-                if (rawNum >= 100) {
-                    const isNeg = /[-−]/.test(fullStr);
-                    const isPos = /\+/.test(fullStr);
-                    results.push({ amount: Math.abs(rawNum), isNeg, isPos, rawText: fullStr });
-                }
-            }
-            return results;
-        };
-
-        // 1단계: 단일 행 단위 검사
-        const processedLineIndices = new Set();
-
+        // 거래 블록 분할
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            const dt = parseDateAndTimeString(line);
-            const amtList = extractAmounts(line);
+            if (isDateRangeHeader(line)) continue;
 
-            if (dt.date && amtList.length > 0) {
-                processedLineIndices.add(i);
-                const targetAmtObj = amtList[0];
-                const mainAmt = targetAmtObj.amount;
-
-                let type = 'expense';
-                if (targetAmtObj.isPos || (incomeKw.test(line) && !targetAmtObj.isNeg)) {
-                    type = 'income';
-                } else if (targetAmtObj.isNeg || expenseKw.test(line)) {
-                    type = 'expense';
-                } else {
-                    // 사람 이름 입금 여부 판별
-                    const name = Utils.extractMemberName(line);
-                    if (name && !expenseKw.test(line)) {
-                        type = 'income';
-                    }
-                }
-
-                const memoText = line
-                    .replace(/\d{4}[.\-\/년]\s*\d{1,2}[.\-\/월]\s*\d{1,2}(?:일)?/g, '')
-                    .replace(/(?:오전|오후|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?/gi, '')
-                    .replace(/\d{1,3}(?:[.,]\d{3})+/g, '')
-                    .replace(/\d{4,}/g, '')
-                    .replace(/[+\-−=│|]/g, '')
-                    .replace(/원|VND|đ|잔액|출금|입금|이체|승인/gi, '')
-                    .replace(/\s+/g, ' ')
-                    .trim()
-                    .slice(0, 45);
-
-                const createdAt = dt.time ? `${dt.date}T${dt.time}` : `${dt.date}T12:00:00`;
-
-                rows.push({
-                    _idx: `ocr_${i}_${Date.now()}_${Math.random()}`,
-                    date: dt.date,
-                    created_at: createdAt,
-                    type,
-                    amount: mainAmt,
-                    memo: memoText || (type === 'income' ? '수입' : '지출'),
-                    method: 'transfer',
-                    isDup: false
-                });
+            const dt = matchTxDateTime(line);
+            if (dt) {
+                if (currentBlock) blocks.push(currentBlock);
+                currentBlock = { dt, lines: [line] };
+            } else if (currentBlock) {
+                currentBlock.lines.push(line);
             }
         }
+        if (currentBlock) blocks.push(currentBlock);
 
-        // 2단계: 멀티라인 블록 파싱 (날짜, 적요, 금액이 2~3줄에 걸쳐 나뉜 경우)
-        for (let i = 0; i < lines.length; i++) {
-            if (processedLineIndices.has(i)) continue;
+        // 각 거래 블록 정밀 파싱
+        for (let bIdx = 0; bIdx < blocks.length; bIdx++) {
+            const b = blocks[bIdx];
+            const fullBlockText = b.lines.join(' ');
 
-            const dt = parseDateAndTimeString(lines[i]);
-            if (dt.date) {
-                // 다음 1~3줄 내에서 금액 및 적요 탐색
-                for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
-                    if (processedLineIndices.has(j)) break;
+            // 잔액 라인 제외
+            const contentLines = b.lines.filter(l => !/(?:잔액|잔고|số dư|so du|balance|차기잔액)/i.test(l));
 
-                    const nextLine = lines[j];
-                    const amtList = extractAmounts(nextLine);
+            let foundAmt = null;
+            let type = 'expense';
 
-                    if (amtList.length > 0) {
-                        const targetAmtObj = amtList[0];
-                        const mainAmt = targetAmtObj.amount;
-                        const blockText = `${lines[i]} ${nextLine} ${lines[j-1] || ''}`;
-
-                        let type = 'expense';
-                        if (targetAmtObj.isPos || (incomeKw.test(blockText) && !targetAmtObj.isNeg)) {
-                            type = 'income';
-                        } else if (targetAmtObj.isNeg || expenseKw.test(blockText)) {
-                            type = 'expense';
-                        }
-
-                        let memoText = blockText
-                            .replace(/\d{4}[.\-\/년]\s*\d{1,2}[.\-\/월]\s*\d{1,2}(?:일)?/g, '')
-                            .replace(/(?:오전|오후|AM|PM)?\s*\d{1,2}:\d{2}(?::\d{2})?/gi, '')
-                            .replace(/\d{1,3}(?:[.,]\d{3})+/g, '')
-                            .replace(/\d{4,}/g, '')
-                            .replace(/[+\-−=│|]/g, '')
-                            .replace(/원|VND|đ|잔액|출금|입금|이체|승인/gi, '')
-                            .replace(/\s+/g, ' ')
-                            .trim()
-                            .slice(0, 45);
-
-                        processedLineIndices.add(i);
-                        processedLineIndices.add(j);
-
-                        const createdAt = dt.time ? `${dt.date}T${dt.time}` : `${dt.date}T12:00:00`;
-
-                        rows.push({
-                            _idx: `ocr_blk_${i}_${j}_${Date.now()}`,
-                            date: dt.date,
-                            created_at: createdAt,
-                            type,
-                            amount: mainAmt,
-                            memo: memoText || (type === 'income' ? '수입' : '지출'),
-                            method: 'transfer',
-                            isDup: false
-                        });
+            // 1. 부호가 붙은 금액 우선 탐색 (+ 130,000, - 19,600, - 1,596,000 등)
+            for (const line of contentLines) {
+                const signMatch = line.match(/([+\-−])\s*(\d{1,3}(?:[.,]\d{3})+|\d{4,})/);
+                if (signMatch) {
+                    const sign = signMatch[1];
+                    const rawNum = parseInt(signMatch[2].replace(/[.,]/g, ''), 10);
+                    if (rawNum >= 100 && rawNum !== 2025 && rawNum !== 2026 && rawNum !== 2027) {
+                        foundAmt = rawNum;
+                        type = (sign === '+') ? 'income' : 'expense';
                         break;
                     }
                 }
             }
+
+            // 2. 부호 없는 일반 거래 금액 탐색
+            if (!foundAmt) {
+                for (const line of contentLines) {
+                    // 승인번호/전문번호/계좌번호(슬래시 포함 긴 숫자 및 8자리 이상) 및 연도 제거
+                    const cleanLine = line
+                        .replace(/\d{5,}\/\d+/g, '')
+                        .replace(/\b\d{8,}\b/g, '')
+                        .replace(/202[4-9]/g, '');
+
+                    const amtMatch = cleanLine.match(/(\d{1,3}(?:[.,]\d{3})+|\d{4,})/);
+                    if (amtMatch) {
+                        const num = parseInt(amtMatch[1].replace(/[.,]/g, ''), 10);
+                        if (num >= 100 && num !== 2025 && num !== 2026 && num !== 2027) {
+                            foundAmt = num;
+                            if (/(?:입금|수입|이자|급여|월급|nhận|thu|nạp|\+)/i.test(fullBlockText)) type = 'income';
+                            else type = 'expense';
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!foundAmt) continue;
+
+            // 3. 적요 및 메모 정밀 추출
+            const memoParts = [];
+            for (const line of contentLines) {
+                let m = line
+                    .replace(/\d{1,2}[.\-\/]\d{1,2}[.\-\/]\d{4}/g, '')
+                    .replace(/\d{4}[.\-\/]\d{1,2}[.\-\/]\d{1,2}/g, '')
+                    .replace(/\d{1,2}:\d{2}(?::\d{2})?/g, '')
+                    .replace(/[+\-−]?\s*\d{1,3}(?:[.,]\d{3})+/g, '')
+                    .replace(/[+\-−]\s*\d+/g, '')
+                    .replace(/[>│|]/g, '')
+                    .trim();
+
+                if (m && !/(?:전체|입금|출금|1개월|조회)/.test(m)) {
+                    memoParts.push(m);
+                }
+            }
+
+            let memoText = memoParts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 45);
+
+            // 사람 이름 입금인 경우 수입으로 자동 보정
+            if (type === 'expense' && Utils.isLikelyMemberName(memoText) && !/(?:송금|출금|결제|당발)/.test(memoText)) {
+                type = 'income';
+            }
+
+            rows.push({
+                _idx: `ocr_${bIdx}_${Date.now()}_${Math.random()}`,
+                date: b.dt.date,
+                created_at: `${b.dt.date}T${b.dt.time}`,
+                type,
+                amount: foundAmt,
+                memo: memoText || (type === 'income' ? '입금' : '지출'),
+                method: 'transfer',
+                isDup: false
+            });
         }
 
         return rows;
