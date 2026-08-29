@@ -171,7 +171,7 @@ const GameDuesPage = {
                     <span style="background:rgba(248,113,113,0.2);color:#fb7185;font-size:0.75rem;font-weight:700;padding:2px 8px;border-radius:10px;">${this._expenseList.length}건</span>
                 </div>
 
-                <!-- 카드 3: 현재 잔액 -->
+                <!-- 카드 3: 현재 잔액 + 이월 버튼 -->
                 <div style="background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(79,70,229,0.06));border:1px solid rgba(129,140,248,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <div style="width:36px;height:36px;border-radius:8px;background:rgba(129,140,248,0.18);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">⚖️</div>
@@ -180,7 +180,15 @@ const GameDuesPage = {
                             <div style="font-size:1.1rem;font-weight:800;color:#818cf8;" id="dues-val-balance">${Utils.formatVND(S.balance)}</div>
                         </div>
                     </div>
-                    <span style="font-size:0.75rem;color:var(--text-muted);background:rgba(255,255,255,0.05);padding:2px 7px;border-radius:6px;">수령 - 지출</span>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
+                        <span style="font-size:0.75rem;color:var(--text-muted);background:rgba(255,255,255,0.05);padding:2px 7px;border-radius:6px;">수령 - 지출</span>
+                        ${S.balance > 0 ? `
+                        <button class="btn btn-ghost btn-sm" onclick="GameDuesPage.openCarryoverModal(${S.balance})"
+                            style="padding:2px 9px;font-size:0.72rem;border-color:rgba(251,191,36,0.5);color:#fbbf24;font-weight:700;white-space:nowrap;"
+                            title="잔액을 다음 모임 날짜의 입금으로 이월 등록">
+                            🔄 다음 모임 이월
+                        </button>` : ''}
+                    </div>
                 </div>
             </div>
 
@@ -1386,6 +1394,78 @@ const GameDuesPage = {
                 <span class="calc-value highlight">${Utils.formatVND(S.myShortfall || 0)}</span>
             </div>
         `;
+    },
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 잔액 이월 (다음 모임으로 잔액 입금 이관)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    openCarryoverModal(balance) {
+        const amt = Math.abs(Utils.parseAmount(balance));
+        if (amt <= 0) {
+            Utils.toast('이월할 잔액이 없습니다', 'error');
+            return;
+        }
+
+        // 다음 모임 날짜 기본값: 오늘 이후 가장 가까운 날짜 또는 오늘
+        const nextDate = Utils.today();
+
+        Modal.open('🔄 게임회비 잔액 이월 등록', `
+            <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;">
+                <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;">이월할 잔액 금액</div>
+                <div style="font-size:1.4rem;font-weight:800;color:#fbbf24;">🏦 ${Utils.formatVND(amt)}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">
+                    이 금액은 게임회비 공금으로, 선택한 날짜의 <strong style="color:#34d399">입금 내역</strong>에 자동 등록됩니다.
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>📅 이월할 날짜 (다음 모임 날짜)</label>
+                    <input type="date" id="carryover-date" value="${nextDate}">
+                </div>
+                <div class="form-group">
+                    <label>이월 금액 (VND) — 수정 가능</label>
+                    <input type="text" id="carryover-amount" value="${amt.toLocaleString('ko-KR')}" inputmode="numeric">
+                </div>
+            </div>
+            <div class="form-group mt-md">
+                <label>메모 (선택)</label>
+                <input type="text" id="carryover-memo" value="이전 모임 잔액 이월" placeholder="예: 8월 26일 잔액 이월">
+            </div>
+
+            <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:8px;padding:8px 12px;margin-top:12px;font-size:0.78rem;color:var(--text-muted);">
+                💡 이월된 잔액은 <strong style="color:#818cf8">게임회비 입금 내역</strong>에만 등록되며, 개인 가계부에는 영향을 주지 않습니다.
+            </div>
+        `, `
+            <button class="btn btn-ghost" onclick="Modal.close()">취소</button>
+            <button class="btn btn-primary" id="btn-save-carryover" style="background:#f59e0b;border-color:#f59e0b;">🔄 이월 등록</button>
+        `);
+
+        Utils.bindAmountInputFormatter(document.getElementById('carryover-amount'));
+
+        document.getElementById('btn-save-carryover')?.addEventListener('click', async () => {
+            const date   = document.getElementById('carryover-date')?.value;
+            const amount = Utils.parseAmount(document.getElementById('carryover-amount')?.value);
+            const memo   = document.getElementById('carryover-memo')?.value?.trim() || '이전 모임 잔액 이월';
+
+            if (!date)      { Utils.toast('날짜를 입력하세요', 'error'); return; }
+            if (amount <= 0){ Utils.toast('이월 금액을 입력하세요', 'error'); return; }
+
+            const btn = document.getElementById('btn-save-carryover');
+            if (btn) { btn.disabled = true; btn.textContent = '등록 중...'; }
+
+            await this._addIncome({
+                tx_date: date,
+                member_name: '이월잔액',
+                amount: amount,
+                memo: `[🔄 이월] ${memo}`
+            });
+
+            Modal.close();
+            this._refreshAll();
+            Utils.toast(`✅ ${Utils.formatDateKR(date)}에 이월 잔액 ${Utils.formatVND(amount)} 입금 등록 완료!`, 'success');
+        });
     },
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
