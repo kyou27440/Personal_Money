@@ -126,6 +126,11 @@ const PersonalPage = {
                 <option value="amount-desc">💰 금액 높은순</option>
                 <option value="amount-asc">💰 금액 낮은순</option>
             </select>
+            <select id="filter-dues-display" style="border-color:rgba(251,191,36,0.4);color:#fbbf24;background:var(--bg-input);font-size:0.8rem;padding:5px 8px;border-radius:8px;" title="게임회비로 이전된 내역의 표시 방식 설정">
+                <option value="badge" ${localStorage.getItem('mymoney_dues_display_mode') === 'badge' || !localStorage.getItem('mymoney_dues_display_mode') ? 'selected' : ''}>🎮 회비이전: 배지+취소선</option>
+                <option value="clean" ${localStorage.getItem('mymoney_dues_display_mode') === 'clean' ? 'selected' : ''}>🎮 회비이전: 멘트숨김 (취소선만)</option>
+                <option value="hide" ${localStorage.getItem('mymoney_dues_display_mode') === 'hide' ? 'selected' : ''}>🎮 회비이전: 목록에서 완전 숨김</option>
+            </select>
             <button class="btn btn-ghost btn-sm" id="btn-filter-tx">🔍 조회</button>
         </div>
 
@@ -159,6 +164,10 @@ const PersonalPage = {
         document.getElementById('btn-adjust-balance')?.addEventListener('click', () => this.openBalanceAdjustmentModal());
         document.getElementById('btn-filter-tx')?.addEventListener('click', () => this.loadTransactions());
         document.getElementById('filter-sort')?.addEventListener('change', () => this.loadTransactions());
+        document.getElementById('filter-dues-display')?.addEventListener('change', (e) => {
+            localStorage.setItem('mymoney_dues_display_mode', e.target.value);
+            this.loadTransactions();
+        });
         document.getElementById('btn-bulk-delete-tx')?.addEventListener('click', () => this.bulkDeleteTx());
         document.getElementById('btn-bulk-edit-tx')?.addEventListener('click', () => this.bulkEditTx());
         document.getElementById('btn-select-zero-tx')?.addEventListener('click', () => this.selectZeroTx());
@@ -488,7 +497,15 @@ const PersonalPage = {
 
         let hasZeroTx = false;
         this.cachedTransactions = txList;
-        tbody.innerHTML = txList.map(tx => {
+
+        const duesDisplayMode = document.getElementById('filter-dues-display')?.value || localStorage.getItem('mymoney_dues_display_mode') || 'badge';
+
+        // 'hide' 모드일 때 게임회비 이전 거래 필터링
+        const filteredTxList = duesDisplayMode === 'hide' 
+            ? txList.filter(t => !t.is_game_dues) 
+            : txList;
+
+        tbody.innerHTML = filteredTxList.map(tx => {
             const isIncome = String(tx.type).trim().toLowerCase() === 'income';
             const isExcludedDues = !!tx.is_game_dues;
             const methodLabel = tx.payment_method === 'cash' ? '💵 현금' : '💳 계좌이체';
@@ -500,14 +517,21 @@ const PersonalPage = {
             if (amt === 0) hasZeroTx = true;
 
             const isDues = !isExcludedDues && Utils.isLikelyGameDues(tx.type, tx.memo);
-            const memoStr = String(tx.memo || '').trim();
-            const isLongMemo = memoStr.length > 25 || /(?:VNPAY|scanning QR|TRANSFER|CK|IB|VCB|BIDV|MBBANK|TECHCOM)/i.test(memoStr);
-            const isImported = isLongMemo || memoStr === '가져오기' || /(?:TRANSFER|CK|IB)/i.test(memoStr);
+            const rawMemoStr = String(tx.memo || '').trim();
+            // 멘트 숨김 옵션 또는 깔끔한 표시를 위해 접두어 분리
+            const cleanMemoStr = rawMemoStr.replace(/\[🎮\s*게임회비[^\]]*\]\s*/g, '').trim();
+            const displayMemo = isExcludedDues ? (cleanMemoStr || '게임회비') : rawMemoStr;
+
+            const isLongMemo = displayMemo.length > 25 || /(?:VNPAY|scanning QR|TRANSFER|CK|IB|VCB|BIDV|MBBANK|TECHCOM)/i.test(displayMemo);
+            const isImported = isLongMemo || displayMemo === '가져오기' || /(?:TRANSFER|CK|IB)/i.test(displayMemo);
             const dateDisplay = isImported ? Utils.formatDateKR(tx.tx_date) : Utils.formatDateTimeKR(tx.tx_date, tx.created_at);
 
             // 취소선 스타일 정의
             const strikeStyle = isExcludedDues ? 'text-decoration: line-through; opacity: 0.6;' : '';
             const rowBg = isExcludedDues ? 'background: rgba(251,191,36,0.04);' : '';
+
+            // 배지 표시 여부 (badge 모드일 때만 배지 표시)
+            const showBadge = isExcludedDues && duesDisplayMode === 'badge';
 
             return `
             <tr ondblclick="PersonalPage.editTx('${tx.id}')" style="cursor:pointer;${rowBg}" title="${isExcludedDues ? '게임회비로 이전되어 가계부 미반영 상태 (취소선)' : '더블클릭하여 이 거래 전체 수정'}">
@@ -525,9 +549,9 @@ const PersonalPage = {
                 <td style="text-align:right;font-weight:600;${strikeStyle}" class="${colorClass}">${sign}${Utils.formatVND(tx.amount)}</td>
                 <td class="text-secondary" onclick="event.stopPropagation()" style="max-width:280px;">
                     <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-                        ${isExcludedDues ? '<span class="badge" style="background:rgba(251,191,36,0.15);color:#fbbf24;font-size:0.7rem;padding:1px 6px;border:1px solid rgba(251,191,36,0.3);font-weight:700;">🎮 게임회비 이전됨 (미반영)</span>' : ''}
-                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;${strikeStyle}" title="${Utils.escapeHtml(memoStr)}">
-                            ${Utils.escapeHtml(memoStr || '—')}
+                        ${showBadge ? '<span class="badge" style="background:rgba(251,191,36,0.15);color:#fbbf24;font-size:0.7rem;padding:1px 6px;border:1px solid rgba(251,191,36,0.3);font-weight:700;">🎮 게임회비 이전됨 (미반영)</span>' : ''}
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;${strikeStyle}" title="${Utils.escapeHtml(displayMemo)}">
+                            ${Utils.escapeHtml(displayMemo || '—')}
                         </span>
                         <button class="btn btn-icon btn-sm" onclick="PersonalPage.quickEditMemo('${tx.id}')" style="padding:1px 4px;font-size:0.7rem;" title="메모 직접 수정">✏️</button>
                         ${isLongMemo ? `<button class="btn btn-ghost btn-sm" onclick="PersonalPage.quickCleanMemo('${tx.id}')" style="padding:1px 5px;font-size:0.7rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" title="긴 은행 전문/불필요 텍스트 깔끔히 정리">🧹정리</button>` : ''}
