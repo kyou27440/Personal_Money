@@ -1127,7 +1127,7 @@ const GameDuesPage = {
                     const categories = await Store.getCategories();
                     const cat = categories.find(c => /취미|레저|문화|골프/i.test(c.name)) || categories.find(c => /기타/i.test(c.name)) || categories[0];
                     const dateKR = Utils.formatDateKR(date);
-                    const memoStr = `[게임회비] ${dateKR} 모임 본인 회비 납부 (${name})${memo ? ' - ' + memo : ''}`;
+                    const memoStr = `[게임회비_본인납부] ${dateKR} 모임 본인 회비 납부 (${name})${memo ? ' - ' + memo : ''}`;
 
                     await Store.addTransaction({
                         tx_date: date,
@@ -1609,7 +1609,7 @@ const GameDuesPage = {
         let cat = categories.find(c => /취미|레저|문화|골프/i.test(c.name)) || categories.find(c => /기타/i.test(c.name)) || categories[0];
 
         const dateKR = Utils.formatDateKR(item.tx_date);
-        const memoStr = `[게임회비] ${dateKR} 모임 본인 회비 납부`;
+        const memoStr = `[게임회비_본인납부] ${dateKR} 모임 본인 회비 납부`;
 
         const ok = confirm(`[${dateKR} 모임 - 본인 회비]\n금액: ${Utils.formatVND(item.amount)}\n\n이 본인 회비를 [내 개인 가계부]의 지출로 등록할까요?\n(카테고리: ${cat ? cat.name : '취미/레저'})`);
         if (!ok) return;
@@ -1663,7 +1663,7 @@ const GameDuesPage = {
                 amount: inc.amount,
                 category_id: cat ? cat.id : null,
                 payment_method: 'account',
-                memo: `[게임회비] ${dateKR} 모임 본인 회비 납부`
+                memo: `[게임회비_본인납부] ${dateKR} 모임 본인 회비 납부`
             });
         }
 
