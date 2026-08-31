@@ -27,12 +27,26 @@ const GameDuesPage = {
     },
 
     async _addIncome(item) {
+        // 1. 낙관적 로컬 삽입 (즉각 UI 반영)
+        const tempId = 'tmp_' + Date.now();
+        const tempItem = { ...item, id: tempId, tx_date: item.tx_date || Utils.today(), amount: Utils.parseAmount(item.amount) };
+        this._incomeList = [tempItem, ...this._incomeList];
+        this._refreshAll();
+
+        // 2. 실제 저장 + 서버 데이터 동기화
         const res = await Store.addGameDuesIncome(item);
         this._incomeList = await Store.getGameDuesIncome();
         return res;
     },
 
     async _updateIncome(id, updates) {
+        // 1. 낙관적 로컬 업데이트
+        this._incomeList = this._incomeList.map(r =>
+            String(r.id) === String(id) ? { ...r, ...updates, amount: Utils.parseAmount(updates.amount ?? r.amount) } : r
+        );
+        this._refreshAll();
+
+        // 2. 실제 업데이트 + 서버 동기화
         const res = await Store.updateGameDuesIncome(id, updates);
         this._incomeList = await Store.getGameDuesIncome();
         return res;
@@ -46,12 +60,26 @@ const GameDuesPage = {
     },
 
     async _addExpense(item) {
+        // 1. 낙관적 로컬 삽입 (즉각 UI 반영)
+        const tempId = 'tmp_' + Date.now();
+        const tempItem = { ...item, id: tempId, tx_date: item.tx_date || Utils.today(), amount: Utils.parseAmount(item.amount) };
+        this._expenseList = [tempItem, ...this._expenseList];
+        this._refreshAll();
+
+        // 2. 실제 저장 + 서버 데이터 동기화
         const res = await Store.addGameDuesExpense(item);
         this._expenseList = await Store.getGameDuesExpense();
         return res;
     },
 
     async _updateExpense(id, updates) {
+        // 1. 낙관적 로컬 업데이트
+        this._expenseList = this._expenseList.map(r =>
+            String(r.id) === String(id) ? { ...r, ...updates, amount: Utils.parseAmount(updates.amount ?? r.amount) } : r
+        );
+        this._refreshAll();
+
+        // 2. 실제 업데이트 + 서버 동기화
         const res = await Store.updateGameDuesExpense(id, updates);
         this._expenseList = await Store.getGameDuesExpense();
         return res;
@@ -1493,9 +1521,29 @@ const GameDuesPage = {
     // REFRESH — 요약 카드 + 테이블 + 멤버 전체 갱신
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+    /** 컨텍스트 유지한 채 데이터 재로드 + UI 갱신 (페이지 전체 재렌더링 없이) */
+    async refresh() {
+        Store._invalidateGameDuesCache();
+        const [inc, exp] = await Promise.all([
+            Store.getGameDuesIncome(),
+            Store.getGameDuesExpense()
+        ]);
+        this._incomeList = inc;
+        this._expenseList = exp;
+        this._personalTxList = await Store.getTransactions({ limit: 1000 });
+        this._refreshAll();
+    },
+
+    async forceReloadAll() {
+        Utils.toast('🔄 데이터 동기화 중...', 'info');
+        await this.refresh();
+        Utils.toast('✅ 동기화 완료!', 'success');
+    },
+
     _refreshAll() {
         const S = this._calcSummary();
         const members = this._getMemberStats();
+
 
         // 요약 카드 업데이트
         const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
