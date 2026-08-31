@@ -1128,7 +1128,9 @@ const PersonalPage = {
     /** 게임회비 본인납부로 가계부에 등록된 항목 여부 판별 (삭제 방지 대상) */
     _isGameDuesSelfPayment(tx) {
         const memo = String(tx.memo || '');
-        return /\[게임회비\].*본인\s*회비\s*납부/i.test(memo);
+        // [게임회비_본인납부] 마커 (신규) 또는 구형 [게임회비]...본인 회비 납부 패턴 모두 대응
+        return /\[게임회비_본인납부\]/i.test(memo) ||
+               /\[게임회비\].*본인\s*회비\s*납부/i.test(memo);
     },
 
     updateBulkDeleteButton() {
