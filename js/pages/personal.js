@@ -329,7 +329,16 @@ const PersonalPage = {
         await this.loadTransactions();
     },
 
+    /** 페이지 전체 재렌더 없이 거래 목록 + 요약 동시 갱신 */
+    async refresh() {
+        await Promise.all([
+            this.loadTransactions(),
+            this.refreshSummary()
+        ]);
+    },
+
     async refreshSummary() {
+
         const summary = await Store.getTransactionSummary(Utils.monthStart(), Utils.monthEnd());
         const breakdown = await Store.getBalanceBreakdown();
         const incEl = document.getElementById('summary-income');
