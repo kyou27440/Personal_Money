@@ -447,7 +447,8 @@ const Store = {
                 const key = `${Utils.formatDate(t.tx_date)}_${Utils.parseAmount(t.amount)}_${String(t.type).trim().toLowerCase()}_${String(t.memo || '').trim()}`;
                 if (!txMap[String(t.id)]) {
                     const cObj = t.personal_categories || catMap[String(t.category_id)] || (String(t.type).trim().toLowerCase() === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
-                    const isGameDues = /(?:\[🎮\s*게임회비|\[게임회비|\[회비이전\])/i.test(t.memo || '');
+                    const isGameDues = /(?:\[🎮\s*게임회비|\[회비이전\])/i.test(t.memo || '') ||
+                        (/\[게임회비\]/i.test(t.memo || '') && !/\[게임회비_본인납부\]/i.test(t.memo || ''));
                     txMap[String(t.id)] = {
                         ...t,
                         tx_date: Utils.formatDate(t.tx_date),
@@ -473,7 +474,8 @@ const Store = {
                 const idKey = t.id ? String(t.id) : ('local_' + key);
                 if (!txMap[idKey]) {
                     const cObj = t.personal_categories || catMap[String(t.category_id)] || (tType === 'income' ? { name: '급여/수입', icon: '💵' } : { name: '기타', icon: '💰' });
-                    const isGameDues = /(?:\[🎮\s*게임회비|\[게임회비|\[회비이전\])/i.test(memoStr);
+                    const isGameDues = /(?:\[🎮\s*게임회비|\[회비이전\])/i.test(memoStr) ||
+                        (/\[게임회비\]/i.test(memoStr) && !/\[게임회비_본인납부\]/i.test(memoStr));
                     txMap[idKey] = {
                         ...t,
                         id: idKey,
