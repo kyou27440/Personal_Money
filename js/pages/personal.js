@@ -973,8 +973,7 @@ const PersonalPage = {
                 if (filterEnd && filterEnd.value < txDate) filterEnd.value = txDate;
                 if (filterStart && filterStart.value > txDate) filterStart.value = txDate;
 
-                await this.loadTransactions();
-                await this.refreshSummary();
+                await this.refresh();
             } else {
                 Utils.toast('저장에 실패했습니다', 'error');
             }
@@ -1125,11 +1124,16 @@ const PersonalPage = {
         }
         const ok = await Modal.confirm('거래 삭제', '이 거래 내역을 삭제하시겠습니까?');
         if (ok) {
+            // 낙관적 UI: 즈시 행 숨김
+            const row = document.querySelector(`[data-id="${id}"]`)?.closest('tr');
+            if (row) row.style.opacity = '0.3';
+
             const result = await Store.deleteTransaction(id);
             if (result) {
                 Utils.toast('삭제되었습니다', 'success');
-                await this.loadTransactions();
-                await this.refreshSummary();
+                await this.refresh();
+            } else {
+                if (row) row.style.opacity = '';
             }
         }
     },
@@ -1454,13 +1458,19 @@ const PersonalPage = {
 
         const ok = await Modal.confirm('일괄 삭제', `선택한 ${ids.length}개의 거래 내역을 삭제하시겠습니까?`);
         if (ok) {
+            // 낙관적 UI: 선택된 행 즉시 페이드
+            ids.forEach(id => {
+                const row = document.querySelector(`.tx-cb[data-id="${id}"]`)?.closest('tr');
+                if (row) row.style.opacity = '0.3';
+            });
+
             const result = await Store.deleteTransactions(ids);
             if (result) {
                 Utils.toast(`${ids.length}개의 거래 내역이 삭제되었습니다`, 'success');
-                await this.loadTransactions();
-                await this.refreshSummary();
+                await this.refresh();
             } else {
                 Utils.toast('삭제 중 오류가 발생했습니다', 'error');
+                await this.loadTransactions();
             }
         }
     },
