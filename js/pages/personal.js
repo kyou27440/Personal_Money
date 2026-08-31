@@ -584,7 +584,10 @@ const PersonalPage = {
                 <td style="white-space:nowrap" onclick="event.stopPropagation()">
                     <button class="btn btn-icon btn-sm" onclick="PersonalPage.editTx('${tx.id}')" title="상세 수정">✏️</button>
                     ${!isExcludedDues ? `<button class="btn btn-icon btn-sm" onclick="PersonalPage.moveToGameDues('${tx.id}')" title="게임회비로 분리 이전" style="color:#fbbf24">🎮</button>` : ''}
-                    <button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteTx('${tx.id}')" title="삭제">🗑️</button>
+                    ${this._isGameDuesSelfPayment(tx)
+                        ? `<button class="btn btn-icon btn-sm" title="게임회비 본인납부 항목 — 가계부에서 삭제 불가" style="opacity:0.45;cursor:not-allowed;" onclick="Utils.toast('⛔ 게임회비 본인납부 항목은 가계부에서 삭제할 수 없습니다.\\n게임회비 관리 페이지에서 해당 입금 내역을 삭제하세요.','error',4000);event.stopPropagation();">🔒</button>`
+                        : `<button class="btn btn-icon btn-sm" onclick="PersonalPage.deleteTx('${tx.id}')" title="삭제">🗑️</button>`
+                    }
                 </td>
             </tr>
             `;
@@ -1104,6 +1107,13 @@ const PersonalPage = {
     },
 
     async deleteTx(id) {
+        // 게임회비 본인납부 항목은 삭제 불가 (가계부 지출 연동 보존)
+        const allTx = this.cachedTransactions || [];
+        const tx = allTx.find(t => String(t.id) === String(id));
+        if (tx && this._isGameDuesSelfPayment(tx)) {
+            Utils.toast('⛔ 이 항목은 게임회비 본인 납부 내역으로,\n가계부에서 직접 삭제할 수 없습니다.\n게임회비 관리에서 해당 입금 내역을 삭제하세요.', 'error', 5000);
+            return;
+        }
         const ok = await Modal.confirm('거래 삭제', '이 거래 내역을 삭제하시겠습니까?');
         if (ok) {
             const result = await Store.deleteTransaction(id);
@@ -1113,6 +1123,12 @@ const PersonalPage = {
                 await this.refreshSummary();
             }
         }
+    },
+
+    /** 게임회비 본인납부로 가계부에 등록된 항목 여부 판별 (삭제 방지 대상) */
+    _isGameDuesSelfPayment(tx) {
+        const memo = String(tx.memo || '');
+        return /\[게임회비\].*본인\s*회비\s*납부/i.test(memo);
     },
 
     updateBulkDeleteButton() {
@@ -1408,7 +1424,21 @@ const PersonalPage = {
 
     async bulkDeleteTx() {
         const checkedCbs = document.querySelectorAll('.tx-cb:checked');
-        const ids = Array.from(checkedCbs).map(cb => cb.dataset.id);
+        const allIds = Array.from(checkedCbs).map(cb => cb.dataset.id);
+        if (allIds.length === 0) return;
+
+        // 게임회비 본인납부 항목 자동 제외
+        const allTx = this.cachedTransactions || [];
+        const lockedIds = allIds.filter(id => {
+            const tx = allTx.find(t => String(t.id) === String(id));
+            return tx && this._isGameDuesSelfPayment(tx);
+        });
+        const ids = allIds.filter(id => !lockedIds.includes(id));
+
+        if (lockedIds.length > 0) {
+            Utils.toast(`🔒 게임회비 본인납부 항목 ${lockedIds.length}건은 삭제 대상에서 자동 제외되었습니다.\n(게임회비 관리 페이지에서 삭제하세요)`, 'info', 5000);
+        }
+
         if (ids.length === 0) return;
 
         const ok = await Modal.confirm('일괄 삭제', `선택한 ${ids.length}개의 거래 내역을 삭제하시겠습니까?`);
